@@ -1,0 +1,89 @@
+---
+spring:
+  datasource:
+    platform: mysql
+    url: jdbc:tc:mysql:5.7://localhost:3306/aftership
+    dataSourceClassName: com.mysql.jdbc.jdbc2.optional.MysqlDataSource
+    driverClassName: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: root
+    password: password
+  jpa:
+    database: mysql
+    database-platform: org.hibernate.dialect.MySQL5InnoDBDialect
+    openInView: false
+    show_sql: true
+    generate-ddl: false
+    properties:
+      javax:
+        persistence:
+          sharedCache:
+            # required - enable selective caching mode -
+            # only entities with @Cacheable annotation will use L2 cache.
+            mode: ENABLE_SELECTIVE
+      hibernate:
+        ddl-auto: none
+        generate_statistics: true
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+kafka:
+  bootstrap-servers: ${KAFKA_HOST:localhost:9092}
+  enabled: ${KAFKA_ENABLED:true}
+  topics:
+    tracking:
+      request: event.vxp.usps.tracking.inbound
+      response: event.vxp.workflow.outbound
+      retryRequest: event.vxp.aftership.tracking.retry
+    externalApiRequestLogs: event.vrp.externalApiRequestLogs
+  defaultConcurrency: ${KAFKA_DEFAULT_CONCURRENCY:2}
+
+afterShip:
+  baseUrl: ${AFTERSHIP_BASE_URL:https://api.aftership.com/v4}
+  apiKey: ${AFTERSHIP_API_KEY:318e9cd7-b436-4667-bbf1-0094248167f4}
+  webhookSecret: ${AFTERSHIP_WEB_HOOK_SECRET:95f35e6b3dbc26527029cbd9cfa51b87}
+  retryStatusCodes: ${AFTERSHIP_RETRY_STATUS_CODES:408,429,503,504}
+  maxRetryCount: ${MAX_RETRY_TRACKING_DELIVERY_COUNT:3}
+  fetchTrackingBeforeDays: ${FETCH_TRACKING_BEFORE_DAYS:3}
+  excludeStatus: ${AFTERSHIP_GET_TRACKING_EXCLUDE_STATUS:Delivered,Exception,Expired}
+  exceptionSubStatus: ${AFTERSHIP_EXCEPTION_SUB_STATUS:Exception_011,Exception_002,Exception_003,Exception_007,Exception_012,Exception_013}
+  cron:
+    retryTrackingDeliveryCron: ${RETRY_TRACKING_DELIVERY_CRON:0 0 0/1 ? * * *}
+    getTrackingCron: ${GET_TRACKING_CRON:0 0 13 * * ? *}
+
+vibrent:
+  rock-steady:
+    system:
+      name: "aftership-services-rock"
+    circuit-breaker:
+      instances:
+        default:
+          slidingWindowSize: ${SLIDING_WINDOW_SIZE:20}
+          minimumNumberOfCalls: ${MINIMUM_NUMBER_OF_CALLS:21}
+          slidingWindowType: ${SLIDING_WINDOW_TYPE:COUNT_BASED}
+          waitDurationInOpenState: ${WAIT_DURATION_IN_OPEN_STATE:300s}
+    retry:
+      instances:
+        default:
+          waitDuration: ${WAIT_DURATION:1s}
+          maxRetryAttempts: ${MAX_RETRY_ATTEMPTS:3}
+          retryExceptions:
+            - "com.vibrent.aftership.exception.AfterShipRetriableException"
+          ignoreExceptions:
+            - "com.vibrent.aftership.exception.AfterShipNonRetriableException"
+
+# Metrics related configurations
+management:
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+        exclude: "quartz"
+  endpoint:
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true

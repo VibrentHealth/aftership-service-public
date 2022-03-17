@@ -1,0 +1,101 @@
+---
+spring:
+  datasource:
+    platform: mysql
+    dataSourceClassName: com.mysql.jdbc.jdbc2.optional.MysqlDataSource
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/aftership?autoreconnect=true&enabledTLSProtocols=TLSv1,TLSv1.1,TLSv1.2
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
+  jpa:
+    database-platform: org.hibernate.dialect.MySQL5InnoDBDialect
+    show_sql: false
+    hibernate:
+      ddl-auto: none
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
+    properties:
+      org.quartz:
+        threadPool:
+          class: org.quartz.simpl.SimpleThreadPool
+          threadCount: 8
+        scheduler:
+          batchTriggerAcquisitionMaxCount: 100
+          skipUpdateCheck: true
+          dbFailureRetryInterval: 15000
+          idleWaitTime: 30000
+          instanceId: AUTO
+          instanceName: quartz-aftership-app
+          autoStartup: true
+          startupDelay: 0
+          classLoadHelper:
+            class: org.quartz.simpl.ThreadContextClassLoadHelper
+        jobStore:
+          class: org.quartz.impl.jdbcjobstore.JobStoreTX
+          tablePrefix: QRTZ_
+          driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+          isClustered: true
+          misfireThreshold: 60000
+          clusterCheckinInterval: 20000
+kafka:
+  bootstrap-servers: ${KAFKA_HOST:localhost:9092}
+  enabled: ${KAFKA_ENABLED:true}
+  topics:
+    tracking:
+      request: event.vxp.usps.tracking.inbound
+      response: event.vxp.workflow.outbound
+      retryRequest: event.vxp.aftership.tracking.retry
+    externalApiRequestLogs: event.vrp.externalApiRequestLogs
+  defaultConcurrency: ${KAFKA_DEFAULT_CONCURRENCY:2}
+
+afterShip:
+  baseUrl: ${AFTERSHIP_BASE_URL:https://api.aftership.com/v4}
+  apiKey: ${AFTERSHIP_API_KEY:94363240-4b0a-4800-b97d-26c1d6348e81}
+  webhookSecret: ${AFTERSHIP_WEB_HOOK_SECRET:70d4576e2fab8ed24eabd1cb79fa14bf}
+  retryStatusCodes: ${AFTERSHIP_RETRY_STATUS_CODES:408,429,503,504}
+  maxRetryCount: ${MAX_RETRY_TRACKING_DELIVERY_COUNT:3}
+  fetchTrackingBeforeDays: ${FETCH_TRACKING_BEFORE_DAYS:3}
+  excludeStatus: ${AFTERSHIP_GET_TRACKING_EXCLUDE_STATUS:Delivered,Exception,Expired} # This status will be excluded from fetching latest status
+  exceptionSubStatus: ${AFTERSHIP_EXCEPTION_SUB_STATUS:Exception_011,Exception_002,Exception_003,Exception_007,Exception_012,Exception_013}
+  cron:
+    retryTrackingDeliveryCron: ${RETRY_TRACKING_DELIVERY_CRON:0 0 0/1 ? * * *}
+    getTrackingCron: ${GET_TRACKING_CRON:0 0 13 * * ? *}
+
+vibrent:
+  rock-steady:
+    system:
+      name: "aftership-services-rock"
+    circuit-breaker:
+      instances:
+        default:
+          slidingWindowSize: ${SLIDING_WINDOW_SIZE:20}
+          minimumNumberOfCalls: ${MINIMUM_NUMBER_OF_CALLS:21}
+          slidingWindowType: ${SLIDING_WINDOW_TYPE:COUNT_BASED}
+          waitDurationInOpenState: ${WAIT_DURATION_IN_OPEN_STATE:300s}
+    retry:
+      instances:
+        default:
+          waitDuration: ${WAIT_DURATION:1s}
+          maxRetryAttempts: ${MAX_RETRY_ATTEMPTS:3}
+          retryExceptions:
+            - "com.vibrent.aftership.exception.AfterShipRetriableException"
+          ignoreExceptions:
+            - "com.vibrent.aftership.exception.AfterShipNonRetriableException"
+
+# Metrics related configurations
+management:
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+        exclude: "quartz"
+  endpoint:
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
