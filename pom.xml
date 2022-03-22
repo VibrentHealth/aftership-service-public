@@ -39,7 +39,7 @@
         <aftership-sdk.version>2.0.8</aftership-sdk.version>
         <commons-lang.version>2.6</commons-lang.version>
         <rock-steady-core.version>1.1.2</rock-steady-core.version>
-        <quartz.version>2.3.0</quartz.version>
+        <quartz.version>2.3.2</quartz.version>
         <micrometer-core.version>1.5.10</micrometer-core.version>
         <resilience4j.version>1.0.0</resilience4j.version>
         <sonar.coverage.exclusions>
