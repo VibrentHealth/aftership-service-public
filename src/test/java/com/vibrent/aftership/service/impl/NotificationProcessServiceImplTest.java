@@ -177,7 +177,7 @@ public class NotificationProcessServiceImplTest {
     @DisplayName("When Exception_011 sub tag received in Notification msg then verify no tracking response sent")
     @Test
     public void processGetTrackingWhenExceptionSubTag11StatusReceived() {
-
+        notificationDTO.getMsg().setTag("Exception");
         notificationDTO.getMsg().setSubtag("Exception_011");
         notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
         verifyNoTrackingResponseSent();
@@ -187,7 +187,7 @@ public class NotificationProcessServiceImplTest {
     @DisplayName("When Exception_012 sub tag received in Notification msg then verify no tracking response sent")
     @Test
     public void processGetTrackingWhenExceptionSubTag12StatusReceived() {
-
+        notificationDTO.getMsg().setTag("Exception");
         notificationDTO.getMsg().setSubtag("Exception_012");
         notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
         verifyNoTrackingResponseSent();
@@ -207,7 +207,7 @@ public class NotificationProcessServiceImplTest {
     @DisplayName("When Exception_002 sub tag received in Notification msg then verify no tracking response sent")
     @Test
     public void processGetTrackingWhenExceptionSubTag02StatusReceived() {
-
+        notificationDTO.getMsg().setTag("Exception");
         notificationDTO.getMsg().setSubtag("Exception_002");
         notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
         verifyNoTrackingResponseSent();
@@ -217,7 +217,7 @@ public class NotificationProcessServiceImplTest {
     @DisplayName("When Exception_003 sub tag received in Notification msg then verify no tracking response sent")
     @Test
     public void processGetTrackingWhenExceptionSubTag03StatusReceived() {
-
+        notificationDTO.getMsg().setTag("Exception");
         notificationDTO.getMsg().setSubtag("Exception_003");
         notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
         verifyNoTrackingResponseSent();
@@ -226,7 +226,7 @@ public class NotificationProcessServiceImplTest {
     @DisplayName("When Exception_007 sub tag received in Notification msg then verify no tracking response sent")
     @Test
     public void processGetTrackingWhenExceptionSubTag07StatusReceived() {
-
+        notificationDTO.getMsg().setTag("Exception");
         notificationDTO.getMsg().setSubtag("Exception_007");
         notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
         verifyNoTrackingResponseSent();

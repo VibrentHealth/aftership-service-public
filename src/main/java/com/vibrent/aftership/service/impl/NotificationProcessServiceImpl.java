@@ -10,10 +10,7 @@ import com.vibrent.aftership.messaging.producer.impl.TrackingResponseProducer;
 import com.vibrent.aftership.repository.TrackingRequestRepository;
 import com.vibrent.aftership.service.NotificationProcessService;
 import com.vibrent.aftership.util.JacksonUtil;
-import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.StatusEnum;
-import com.vibrent.vxp.workflow.TrackDeliveryResponseDto;
-import com.vibrent.vxp.workflow.TrackDeliveryResponseDtoWrapper;
+import com.vibrent.vxp.workflow.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -130,11 +127,11 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
             }
             String subtagMessage = tracking.getSubtag();
             if (TAG_EXCEPTION.equalsIgnoreCase(newStatus)) {
-                log.info("AfterShip: Received tracking request with status Exception subTag {}.", subtagMessage);
+                log.info("AfterShip: Received tracking request with status Exception subTag {}.  participantId: {} ", subtagMessage, Optional.ofNullable(trackDeliveryResponseDto.getParticipant()).map(ParticipantDto::getVibrentID).orElse(null));
             }
 
             if (StringUtils.hasText(subtagMessage) && exceptionSubStatus.contains(subtagMessage)) {
-                log.info("AfterShip: Track Delivery Response not sent as received exception subTag {}.", subtagMessage);
+                log.info("AfterShip: Track Delivery Response not sent as received exception subTag {}.  participantId: {}", subtagMessage, Optional.ofNullable(trackDeliveryResponseDto.getParticipant()).map(ParticipantDto::getVibrentID).orElse(null));
                 return;
             }
 
