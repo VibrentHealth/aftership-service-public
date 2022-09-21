@@ -2,6 +2,7 @@ package com.vibrent.aftership.configuration;
 
 import com.vibrent.aftership.dto.ExternalLogDTO;
 import com.vibrent.aftership.dto.RetryRequestDTO;
+import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryResponseDto;
 import com.vibrent.vxp.workflow.TrackDeliveryResponseDtoWrapper;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -63,5 +64,16 @@ public class KafkaProducerConfig {
     public KafkaTemplate<String, RetryRequestDTO> kafkaTemplateRetryRequestDTO() {
         Map<String, Object> configs = new HashMap<>();
         return new KafkaTemplate<>(producerFactoryRetryRequestDTO(configs));
+    }
+
+    @Bean
+    public ProducerFactory<String, FulfillmentTrackDeliveryResponseDto> fulfillmentTrackingResponseProducerFactory(Map<String, Object> configs) {
+        return new DefaultKafkaProducerFactory<>(producerConfigs(configs));
+    }
+
+    @Bean
+    public KafkaTemplate<String, FulfillmentTrackDeliveryResponseDto> fulfillmentTrackingResponseKafkaTemplate() {
+        Map<String, Object> configs = new HashMap<>();
+        return new KafkaTemplate<>(fulfillmentTrackingResponseProducerFactory(configs));
     }
 }

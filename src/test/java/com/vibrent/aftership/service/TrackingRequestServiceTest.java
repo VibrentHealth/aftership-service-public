@@ -12,10 +12,10 @@ import com.vibrent.aftership.repository.TrackingRequestErrorRepository;
 import com.vibrent.aftership.repository.TrackingRequestRepository;
 import com.vibrent.aftership.service.impl.AfterShipTrackingServiceImpl;
 import com.vibrent.aftership.service.impl.TrackingRequestServiceImpl;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.ParticipantDto;
+import com.vibrent.vxp.workflow.ParticipantDetailsDto;
 import com.vibrent.vxp.workflow.ProviderEnum;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
 import com.vibrenthealth.resiliency.core.Output;
 import com.vibrenthealth.resiliency.core.RockSteadySystem;
 import lombok.SneakyThrows;
@@ -62,12 +62,12 @@ class TrackingRequestServiceTest {
     @Mock
     private TrackingRequestErrorConverter trackingRequestErrorConverter;
 
-    private static TrackDeliveryRequestDto buildTrackDeliveryRequestDto() {
-        ParticipantDto participant = new ParticipantDto();
+    private static TrackDeliveryRequestVo buildTrackDeliveryRequestVo() {
+        ParticipantDetailsDto participant = new ParticipantDetailsDto();
         participant.setVibrentID(123L);
         participant.setExternalID("p123L");
 
-        TrackDeliveryRequestDto requestDto = new TrackDeliveryRequestDto();
+        TrackDeliveryRequestVo requestDto = new TrackDeliveryRequestVo();
         requestDto.setParticipant(participant);
         requestDto.setTrackingID("trackingID");
         return requestDto;
@@ -100,10 +100,10 @@ class TrackingRequestServiceTest {
     @Test
     void whenDuplicateTrackingIDReceivedThenVerifyCreateTrackDeliveryRequestReturnsFalseResponse() {
 
-        TrackDeliveryRequestDto requestDto = buildTrackDeliveryRequestDto();
+        TrackDeliveryRequestVo requestDto = buildTrackDeliveryRequestVo();
         TrackingRequest trackingRequest = new TrackingRequest();
         trackingRequest.setTrackingId(requestDto.getTrackingID());
-        trackingRequest.setProvider(ProviderEnum.USPS);
+        trackingRequest.setProvider(ProviderEnum.USPS.toValue());
 
 
         when(trackingRequestRepository.findByTrackingId(trackingRequest.getTrackingId())).thenReturn(Optional.of(trackingRequest));
@@ -121,7 +121,7 @@ class TrackingRequestServiceTest {
     @SneakyThrows
     @Test
     void whenCreateTrackingSuccessfulVerifySuccessResponse() {
-        var request = buildTrackDeliveryRequestDto();
+        var request = buildTrackDeliveryRequestVo();
         var messageHeaderDto = new MessageHeaderDto();
         when(rockSteadySystem.executeWithRetries(any(), any(), any())).thenReturn(new Output<>(tracking));
         var response = trackingRequestService.createTrackDeliveryRequest(request, messageHeaderDto);
@@ -129,7 +129,7 @@ class TrackingRequestServiceTest {
         verify(trackingRequestConverter).toTrackingRequest(request, messageHeaderDto);
         verify(trackingRequestRepository).save(any());
         verify(trackingRequestErrorRepository, times(0)).save(any());
-        verify(externalLogService, times(1)).send(any(TrackDeliveryRequestDto.class), any(Long.class), any(Integer.class),
+        verify(externalLogService, times(1)).send(any(TrackDeliveryRequestVo.class), any(Long.class), any(Integer.class),
                 any(NewTracking.class), any(Long.class), any(String.class), any(String.class));
     }
 
@@ -142,13 +142,13 @@ class TrackingRequestServiceTest {
     @SneakyThrows
     @Test
     void whenCreateTrackingRequestFailedVerifyFailureResponse() {
-        var request = buildTrackDeliveryRequestDto();
+        var request = buildTrackDeliveryRequestVo();
         when(rockSteadySystem.executeWithRetries(any(), any(), any())).thenReturn(new Output<>(new AfterShipNonRetriableException("Invalid Key", 401)));
         var response = trackingRequestService.createTrackDeliveryRequest(request, new MessageHeaderDto());
         assertFalse(response);
         verify(trackingRequestRepository, times(0)).save(any());
         verify(trackingRequestErrorRepository, times(1)).save(any());
-        verify(externalLogService, times(1)).send(any(TrackDeliveryRequestDto.class), any(Long.class), any(Integer.class),
+        verify(externalLogService, times(1)).send(any(TrackDeliveryRequestVo.class), any(Long.class), any(Integer.class),
                 any(NewTracking.class), any(Long.class), any(String.class), any(String.class));
     }
 
@@ -161,13 +161,13 @@ class TrackingRequestServiceTest {
     @SneakyThrows
     @Test
     void whenCreateTrackingRequestFailedWithNullErrorVerifyFailureResponse() {
-        var request = buildTrackDeliveryRequestDto();
+        var request = buildTrackDeliveryRequestVo();
         when(rockSteadySystem.executeWithRetries(any(), any(), any())).thenReturn(new Output<>(new AfterShipNonRetriableException("Error", null)));
         var response = trackingRequestService.createTrackDeliveryRequest(request, new MessageHeaderDto());
         assertFalse(response);
         verify(trackingRequestRepository, times(0)).save(any());
         verify(trackingRequestErrorRepository, times(1)).save(any());
-        verify(externalLogService, times(1)).send(any(TrackDeliveryRequestDto.class), any(Long.class), nullable(Integer.class),
+        verify(externalLogService, times(1)).send(any(TrackDeliveryRequestVo.class), any(Long.class), nullable(Integer.class),
                 any(NewTracking.class), any(Long.class), any(String.class), any(String.class));
     }
 

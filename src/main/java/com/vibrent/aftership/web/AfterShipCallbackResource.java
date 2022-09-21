@@ -37,11 +37,11 @@ public class AfterShipCallbackResource {
     }
 
     @PostMapping(value = "/aftership/notification")
-    @Timed(value = "notificationWebhookTime", description = "Time taken to process notification webhook")
     public ResponseEntity<Void> notificationCallback(HttpEntity<String> httpEntity) {
         return processNotificationCallback(httpEntity);
     }
 
+    @Timed(value = "notificationWebhookTime", description = "Time taken to process notification webhook")
     private ResponseEntity<Void> processNotificationCallback(HttpEntity<String> httpEntity) {
 
         //Validate the signature

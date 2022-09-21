@@ -2,6 +2,7 @@ package com.vibrent.aftership.messaging.producer;
 
 import com.vibrent.aftership.constants.KafkaConstants;
 import com.vibrent.aftership.dto.RetryRequestDTO;
+import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryResponseDto;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
 import com.vibrent.vxp.workflow.TrackDeliveryResponseDto;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -20,6 +21,23 @@ public interface MessageProducer<T> {
 
     default Message<TrackDeliveryResponseDto> buildMessage(TrackDeliveryResponseDto payload, MessageHeaderDto headers, String topicName) {
         MessageBuilder<TrackDeliveryResponseDto> messageBuilder = MessageBuilder.withPayload(payload);
+        setMessageHeaders(headers, topicName, (MessageBuilder<T>) messageBuilder);
+        return messageBuilder.build();
+    }
+
+    default Message<RetryRequestDTO> buildMessage(RetryRequestDTO payload,  String topicName) {
+        MessageBuilder<RetryRequestDTO> messageBuilder = MessageBuilder.withPayload(payload);
+        messageBuilder.setHeader(KafkaHeaders.TOPIC, topicName);
+        return messageBuilder.build();
+    }
+
+    default Message<FulfillmentTrackDeliveryResponseDto> buildMessage(FulfillmentTrackDeliveryResponseDto payload, MessageHeaderDto headers, String topicName) {
+        MessageBuilder<FulfillmentTrackDeliveryResponseDto> messageBuilder = MessageBuilder.withPayload(payload);
+        setMessageHeaders(headers, topicName, (MessageBuilder<T>) messageBuilder);
+        return messageBuilder.build();
+    }
+
+    private void setMessageHeaders(MessageHeaderDto headers, String topicName, MessageBuilder<T> messageBuilder) {
         messageBuilder.setHeader(KafkaHeaders.TOPIC, topicName);
         messageBuilder.setHeader(KafkaConstants.VXP_HEADER_VERSION, headers.getVxpHeaderVersion());
         messageBuilder.setHeader(KafkaConstants.VXP_ORIGINATOR, headers.getVxpOriginator().toValue());
@@ -34,12 +52,5 @@ public interface MessageProducer<T> {
         messageBuilder.setHeader(KafkaConstants.VXP_MESSAGE_ID, headers.getVxpMessageID());
         messageBuilder.setHeader(KafkaConstants.VXP_IN_REPLY_TO_ID, "");
         messageBuilder.setHeader(KafkaConstants.VXP_MESSAGE_TIMESTAMP, headers.getVxpMessageTimestamp());
-        return messageBuilder.build();
-    }
-
-    default Message<RetryRequestDTO> buildMessage(RetryRequestDTO payload,  String topicName) {
-        MessageBuilder<RetryRequestDTO> messageBuilder = MessageBuilder.withPayload(payload);
-        messageBuilder.setHeader(KafkaHeaders.TOPIC, topicName);
-        return messageBuilder.build();
     }
 }

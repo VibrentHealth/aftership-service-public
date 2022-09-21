@@ -30,6 +30,9 @@ kafka:
   bootstrap-servers: ${KAFKA_HOST:localhost:9092}
   enabled: ${KAFKA_ENABLED:true}
   topics:
+    track:
+      request: event.vxp.tracking.order.request
+      response: event.vxp.tracking.order.response
     tracking:
       request: event.vxp.usps.tracking.inbound
       response: event.vxp.workflow.outbound

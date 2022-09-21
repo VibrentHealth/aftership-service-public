@@ -6,6 +6,7 @@ import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.TimeZone;
 
 @Slf4j
@@ -15,10 +16,24 @@ public class DateTimeUtil {
         //private constructor
     }
 
-    public static Long getTimestampFromStringDate(String dateTime, DateTimeFormatter dateTimeFormatter, ZoneId zoneId) {
+    public static Long getTimestampFromStringISODate(String dateTime, ZoneId zoneId) {
         Long timestamp = null;
+
         if (dateTime != null) {
-            timestamp = LocalDate.parse(dateTime, dateTimeFormatter).atStartOfDay().atZone(zoneId).toInstant().toEpochMilli();
+            final DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                    .parseCaseInsensitive()
+                    .append(DateTimeFormatter.ISO_LOCAL_DATE)
+                    .optionalStart()
+                    .optionalStart()
+                    .appendLiteral(' ')
+                    .optionalEnd()
+                    .optionalStart()
+                    .appendLiteral('T')
+                    .optionalEnd()
+                    .appendOptional(DateTimeFormatter.ISO_TIME)
+                    .toFormatter();
+
+            timestamp = LocalDate.parse(dateTime, formatter).atStartOfDay().atZone(zoneId).toInstant().toEpochMilli();
         }
         return timestamp;
     }

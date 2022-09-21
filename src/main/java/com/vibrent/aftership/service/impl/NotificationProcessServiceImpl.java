@@ -2,10 +2,12 @@ package com.vibrent.aftership.service.impl;
 
 import com.aftership.sdk.model.tracking.Tracking;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.vibrent.aftership.converter.FulfillmentTrackDeliveryResponseConverter;
 import com.vibrent.aftership.converter.TrackDeliveryResponseConverter;
 import com.vibrent.aftership.domain.TrackingRequest;
 import com.vibrent.aftership.dto.NotificationDTO;
 import com.vibrent.aftership.enums.CarrierResponseType;
+import com.vibrent.aftership.messaging.producer.impl.FulfillmentTrackingResponseProducer;
 import com.vibrent.aftership.messaging.producer.impl.TrackingResponseProducer;
 import com.vibrent.aftership.repository.TrackingRequestRepository;
 import com.vibrent.aftership.service.NotificationProcessService;
@@ -18,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import javax.validation.constraints.NotNull;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static com.vibrent.aftership.constants.AfterShipConstants.TAG_EXCEPTION;
@@ -27,16 +30,22 @@ import static com.vibrent.aftership.constants.AfterShipConstants.TAG_EXCEPTION;
 public class NotificationProcessServiceImpl implements NotificationProcessService {
 
     private final TrackDeliveryResponseConverter trackDeliveryResponseConverter;
+    private final FulfillmentTrackDeliveryResponseConverter fulfillmentTrackDeliveryResponseConverter;
     private final TrackingResponseProducer trackingResponseProducer;
+    private final FulfillmentTrackingResponseProducer fulfillmentTrackingResponseProducer;
     private final TrackingRequestRepository trackingRequestRepository;
     private List<String> exceptionSubStatus;
 
     public NotificationProcessServiceImpl(TrackDeliveryResponseConverter trackDeliveryResponseConverter,
+                                          FulfillmentTrackDeliveryResponseConverter fulfillmentTrackDeliveryResponseConverter,
                                           TrackingResponseProducer trackingResponseProducer,
+                                          FulfillmentTrackingResponseProducer fulfillmentTrackingResponseProducer,
                                           TrackingRequestRepository trackingRequestRepository,
                                           @NotNull @Value("${afterShip.exceptionSubStatus}") List<String> exceptionSubStatus) {
         this.trackDeliveryResponseConverter = trackDeliveryResponseConverter;
+        this.fulfillmentTrackDeliveryResponseConverter = fulfillmentTrackDeliveryResponseConverter;
         this.trackingResponseProducer = trackingResponseProducer;
+        this.fulfillmentTrackingResponseProducer = fulfillmentTrackingResponseProducer;
         this.trackingRequestRepository = trackingRequestRepository;
         this.exceptionSubStatus = exceptionSubStatus;
     }
@@ -58,9 +67,13 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
                 return;
             }
 
-            TrackDeliveryResponseDto trackDeliveryResponseDto = this.trackDeliveryResponseConverter.convert(notificationDTO.getMsg(), trackingRequest);
-
-            sendTrackDeliveryResponse(notificationDTO.getMsg(), trackingRequest, trackDeliveryResponseDto);
+            if(Objects.isNull(trackingRequest.getFulfillmentOrderID())){
+                TrackDeliveryResponseDto trackDeliveryResponseDto = this.trackDeliveryResponseConverter.convert(notificationDTO.getMsg(), trackingRequest);
+                sendTrackDeliveryResponse(notificationDTO.getMsg(), trackingRequest, trackDeliveryResponseDto);
+            }else {
+                FulfillmentTrackDeliveryResponseDto fulfillmentTrackDeliveryResponseDto = this.fulfillmentTrackDeliveryResponseConverter.convert(notificationDTO.getMsg(), trackingRequest);
+                sendTrackDeliveryResponse(notificationDTO.getMsg(), trackingRequest, fulfillmentTrackDeliveryResponseDto);
+            }
 
             //Update tracking request
             carrierResponse = getCarrierResponseAsString(notificationDTO);
@@ -84,8 +97,14 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
                 return;
             }
 
-            TrackDeliveryResponseDto trackDeliveryResponseDto = this.trackDeliveryResponseConverter.convert(tracking, trackingRequest);
-            sendTrackDeliveryResponse(tracking, trackingRequest, trackDeliveryResponseDto);
+            if(Objects.isNull(trackingRequest.getFulfillmentOrderID())){
+                TrackDeliveryResponseDto trackDeliveryResponseDto = this.trackDeliveryResponseConverter.convert(tracking, trackingRequest);
+                sendTrackDeliveryResponse(tracking, trackingRequest, trackDeliveryResponseDto);
+            }else {
+                FulfillmentTrackDeliveryResponseDto fulfillmentTrackDeliveryResponseDto = this.fulfillmentTrackDeliveryResponseConverter.convert(tracking, trackingRequest);
+                sendTrackDeliveryResponse(tracking, trackingRequest, fulfillmentTrackDeliveryResponseDto);
+            }
+
             //Update tracking request
             carrierResponse = getCarrierResponseAsString(tracking);
             updateTrackingRequest(trackingRequest, tracking, carrierResponse, CarrierResponseType.TRACKING.toString());
@@ -135,7 +154,7 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
                 return;
             }
 
-            MessageHeaderDto messageHeaderDto = this.trackDeliveryResponseConverter.populateMessageHeaderDTO(tracking, trackingRequest);
+            MessageHeaderDto messageHeaderDto = this.trackDeliveryResponseConverter.populateMessageHeaderDTO(trackDeliveryResponseDto.getParticipant(), trackingRequest);
             this.trackingResponseProducer.send(new TrackDeliveryResponseDtoWrapper(trackDeliveryResponseDto, messageHeaderDto));
         } else {
             log.info("AfterShip: Received status other than InTransit, Delivered or Exception from AfterShip. Received tag: {}", tracking.getTag());
@@ -149,6 +168,28 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
         trackingRequest.setSubStatusDescription(tracking.getSubtagMessage());
         trackingRequest.setCarrierResponseType(carrierResponseType);
         this.trackingRequestRepository.save(trackingRequest);
+    }
+
+    private void sendTrackDeliveryResponse(Tracking tracking, TrackingRequest trackingRequest, FulfillmentTrackDeliveryResponseDto fulfillmentTrackDeliveryResponseDto) {
+
+        if (fulfillmentTrackDeliveryResponseDto.getStatus() != TrackingStatusEnum.UNRECOGNIZE) {
+            String newStatus = tracking.getTag();
+            String newSubStatus = tracking.getSubtag();
+            if (StringUtils.hasText(trackingRequest.getStatus()) && StringUtils.hasText(trackingRequest.getSubStatusCode())
+                    && StringUtils.hasText(newStatus) && trackingRequest.getStatus().equals(newStatus)
+                    && StringUtils.hasText(newSubStatus) && trackingRequest.getSubStatusCode().equals(newSubStatus)) {
+                log.info("AfterShip: Received same status in the notification. No need to send tracking response.");
+                return;
+            }
+            if (TAG_EXCEPTION.equalsIgnoreCase(newStatus)) {
+                log.info("AfterShip: Received tracking request with status Exception subTag {}.  participantId: {} ", newSubStatus, Optional.ofNullable(fulfillmentTrackDeliveryResponseDto.getParticipant()).map(ParticipantDetailsDto::getVibrentID).orElse(null));
+            }
+
+            MessageHeaderDto messageHeaderDto = this.fulfillmentTrackDeliveryResponseConverter.populateMessageHeaderDTO(fulfillmentTrackDeliveryResponseDto.getParticipant(), trackingRequest);
+            this.fulfillmentTrackingResponseProducer.send(new FulfillmentTrackDeliveryResponseDtoWrapper(fulfillmentTrackDeliveryResponseDto, messageHeaderDto));
+        } else {
+            log.info("AfterShip: Received status other than TrackingStatusEnum from AfterShip. Received tag: {}", tracking.getTag());
+        }
     }
 
 }

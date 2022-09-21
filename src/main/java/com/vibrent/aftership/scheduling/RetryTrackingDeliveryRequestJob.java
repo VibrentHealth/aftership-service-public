@@ -5,8 +5,8 @@ import com.vibrent.aftership.dto.RetryRequestDTO;
 import com.vibrent.aftership.messaging.producer.impl.RetryTrackingDeliveryRequestProducer;
 import com.vibrent.aftership.repository.TrackingRequestErrorRepository;
 import com.vibrent.aftership.util.JacksonUtil;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
@@ -43,10 +43,10 @@ public class RetryTrackingDeliveryRequestJob implements Job {
                 .forEach(trackingRequestError ->
                 {
                     try {
-                        TrackDeliveryRequestDto trackDeliveryRequestDto = JacksonUtil.getMapper().readValue(trackingRequestError.getTrackDeliveryRequest(), TrackDeliveryRequestDto.class);
+                        TrackDeliveryRequestVo trackDeliveryRequestVo = JacksonUtil.getMapper().readValue(trackingRequestError.getTrackDeliveryRequest(), TrackDeliveryRequestVo.class);
                         MessageHeaderDto messageHeaderDto = JacksonUtil.getMapper().readValue(trackingRequestError.getHeader(), MessageHeaderDto.class);
-                        log.info("Retrying tracking ID {} ", trackDeliveryRequestDto.getTrackingID());
-                        RetryRequestDTO retryRequestDTO = new RetryRequestDTO(trackDeliveryRequestDto, messageHeaderDto);
+                        log.info("Retrying tracking ID {} ", trackDeliveryRequestVo.getTrackingID());
+                        RetryRequestDTO retryRequestDTO = new RetryRequestDTO(trackDeliveryRequestVo, messageHeaderDto);
                         retryTrackingDeliveryRequestProducer.send(retryRequestDTO);
                     } catch (Exception e) {
                         log.warn("Aftership | Failed to send error tracking request for Tracking id : {}, Exception {}", trackingRequestError.getTrackingId(), e);

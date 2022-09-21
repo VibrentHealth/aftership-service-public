@@ -14,9 +14,9 @@ import com.vibrent.aftership.service.AfterShipTrackingService;
 import com.vibrent.aftership.service.ExternalLogService;
 import com.vibrent.aftership.service.TrackingRequestService;
 import com.vibrent.aftership.util.JacksonUtil;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.ParticipantDto;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
+import com.vibrent.vxp.workflow.ParticipantDetailsDto;
 import com.vibrenthealth.resiliency.core.Output;
 import com.vibrenthealth.resiliency.core.RetryModesEnum;
 import com.vibrenthealth.resiliency.core.RockSteadySystem;
@@ -61,36 +61,36 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
 
     @Override
     @Transactional
-    public boolean createTrackDeliveryRequest(TrackDeliveryRequestDto trackDeliveryRequestDto, MessageHeaderDto messageHeader) {
-        log.debug("TrackDeliveryRequest = {}, headers = {}", trackDeliveryRequestDto, messageHeader);
+    public boolean createTrackDeliveryRequest(TrackDeliveryRequestVo trackDeliveryRequestVo, MessageHeaderDto messageHeader) {
+        log.debug("TrackDeliveryRequest = {}, headers = {}", trackDeliveryRequestVo, messageHeader);
 
-        if (trackDeliveryRequestDto == null || messageHeader == null) {
+        if (trackDeliveryRequestVo == null || messageHeader == null) {
             log.warn("afterShip: Null TrackDeliveryRequestDto or messageHeader object received.");
             return false;
         }
 
-        Optional<TrackingRequest> optionalTrackingRequest = this.trackingRequestRepository.findByTrackingId(trackDeliveryRequestDto.getTrackingID());
+        Optional<TrackingRequest> optionalTrackingRequest = this.trackingRequestRepository.findByTrackingId(trackDeliveryRequestVo.getTrackingID());
         if (optionalTrackingRequest.isPresent()) {
             log.warn("AfterShip: Received duplicate tracking request for tracking ID: {}, Ignoring the track delivery message: {}",
-                    trackDeliveryRequestDto.getTrackingID(), trackDeliveryRequestDto);
+                    trackDeliveryRequestVo.getTrackingID(), trackDeliveryRequestVo);
             return false;
         }
 
         NewTracking newTracking = new NewTracking();
-        newTracking.setTrackingNumber(trackDeliveryRequestDto.getTrackingID());
-        newTracking.setCustomFields(getCustomFields(trackDeliveryRequestDto));
-        Tracking tracking = createTracking(() -> afterShipTrackingService.createTracking(newTracking), newTracking, trackDeliveryRequestDto, messageHeader);
+        newTracking.setTrackingNumber(trackDeliveryRequestVo.getTrackingID());
+        newTracking.setCustomFields(getCustomFields(trackDeliveryRequestVo));
+        Tracking tracking = createTracking(() -> afterShipTrackingService.createTracking(newTracking), newTracking, trackDeliveryRequestVo, messageHeader);
         boolean isSuccess = tracking != null;
         if (isSuccess) {
-            saveTrackingRequest(trackDeliveryRequestDto, messageHeader);
+            saveTrackingRequest(trackDeliveryRequestVo, messageHeader);
         }
         return isSuccess;
 
     }
 
-    private static HashMap<String, String> getCustomFields(TrackDeliveryRequestDto trackDeliveryRequestDto) {
+    private static HashMap<String, String> getCustomFields(TrackDeliveryRequestVo trackDeliveryRequestVo) {
         HashMap<String, String> customFields = new HashMap<>();
-        ParticipantDto participant = trackDeliveryRequestDto.getParticipant();
+        ParticipantDetailsDto participant = trackDeliveryRequestVo.getParticipant();
 
         if (participant != null) {
             customFields.put(CUSTOM_FIELD_VIBRENT_ID, String.valueOf(participant.getVibrentID()));
@@ -100,13 +100,13 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
         return customFields;
     }
 
-    private void saveTrackingRequest(TrackDeliveryRequestDto trackDeliveryRequestDto, MessageHeaderDto messageHeader) {
-        TrackingRequest trackingRequest = this.trackingRequestConverter.toTrackingRequest(trackDeliveryRequestDto, messageHeader);
+    private void saveTrackingRequest(TrackDeliveryRequestVo trackDeliveryRequestVo, MessageHeaderDto messageHeader) {
+        TrackingRequest trackingRequest = this.trackingRequestConverter.toTrackingRequest(trackDeliveryRequestVo, messageHeader);
         this.trackingRequestRepository.save(trackingRequest);
     }
 
     private Tracking createTracking(@NonNull Supplier<Tracking> createTracking, NewTracking newTracking,
-                                    TrackDeliveryRequestDto trackDeliveryRequestDto, MessageHeaderDto messageHeaderDto) {
+                                    TrackDeliveryRequestVo trackDeliveryRequestVo, MessageHeaderDto messageHeaderDto) {
         log.info("AfterShip: Received request to create new tracking {}", newTracking);
         Long requestTimeStamp = System.currentTimeMillis();
         Output<Tracking> outputFromAfterShip = rockSteadySystem.executeWithRetries(createTracking, MDC.getCopyOfContextMap(), RetryModesEnum.IMMEDIATE);
@@ -114,28 +114,28 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
 
         if (outputFromAfterShip.result != null) {
             log.info("AfterShip: Successfully created trackingRequest {}", newTracking);
-            this.externalLogService.send(trackDeliveryRequestDto, System.currentTimeMillis(),
+            this.externalLogService.send(trackDeliveryRequestVo, System.currentTimeMillis(),
                     HttpStatus.OK.value(), newTracking, requestTimeStamp, getResponseBody(outputFromAfterShip.result),
-                    "AfterShip | Successfully sent request to AfterShip for tracking");
+                    "AfterShip | Successfully sent the Create Tracking request to AfterShip");
             return outputFromAfterShip.result;
         } else {
             String message = outputFromAfterShip.error == null ? "NA" : outputFromAfterShip.error.getMessage();
             log.warn("AfterShip: Failed to create new trackingRequest, cause - {}, trackingRequest: {}", message, newTracking);
-            saveTrackingRequestError(trackDeliveryRequestDto, messageHeaderDto, outputFromAfterShip.error);
+            saveTrackingRequestError(trackDeliveryRequestVo, messageHeaderDto, outputFromAfterShip.error);
             //Sending event in case of AfterShipException. For other CircuitBreaker exception like CallNotPermitted not sending the event
             //as we are not communicating with AfterShip cloud service
             if (outputFromAfterShip.error instanceof AfterShipException) {
-                this.externalLogService.send(trackDeliveryRequestDto, responseTimeStamp,
+                this.externalLogService.send(trackDeliveryRequestVo, responseTimeStamp,
                         getErrorCode(outputFromAfterShip), newTracking, requestTimeStamp, outputFromAfterShip.error.getMessage(),
-                        "AfterShip | Failed to sent request to AfterShip for tracking");
+                        "AfterShip | Failed to sent the Create Tracking request to AfterShip");
             }
             return null;
         }
     }
 
-    private void saveTrackingRequestError(TrackDeliveryRequestDto trackDeliveryRequestDto, MessageHeaderDto messageHeaderDto,
+    private void saveTrackingRequestError(TrackDeliveryRequestVo trackDeliveryRequestVo, MessageHeaderDto messageHeaderDto,
                                           Throwable throwable) {
-        TrackingRequestError trackingRequestError = this.trackingRequestErrorConverter.toTrackingRequestError(trackDeliveryRequestDto, messageHeaderDto, throwable);
+        TrackingRequestError trackingRequestError = this.trackingRequestErrorConverter.toTrackingRequestError(trackDeliveryRequestVo, messageHeaderDto, throwable);
         this.trackingRequestErrorRepository.save(trackingRequestError);
     }
 

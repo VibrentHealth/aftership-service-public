@@ -4,6 +4,7 @@ package com.vibrent.aftership.integration.messaging.listener;
 import com.vibrent.aftership.integration.IntegrationTestBase;
 import com.vibrent.aftership.messaging.listener.TrackDeliveryRequestListener;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
 import com.vibrent.vxp.workflow.MessageSpecificationEnum;
 import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
@@ -50,7 +51,7 @@ public class TrackDeliveryRequestListenerTest extends IntegrationTestBase {
         Message<TrackDeliveryRequestDto> message = buildMessage(new TrackDeliveryRequestDto(), MessageSpecificationEnum.WORKFLOW_REQUEST);
         template.send(message);
         waitForSeconds(3);
-        verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),
+        verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
     }
 
@@ -60,7 +61,7 @@ public class TrackDeliveryRequestListenerTest extends IntegrationTestBase {
     void ignoreTrackDeliveryRequestWhenKafkaIsDisabled() {
         ReflectionTestUtils.setField(trackDeliveryRequestListener, "kafkaEnabled", false );
         trackDeliveryRequestListener.listener( new TrackDeliveryRequestDto(), null);
-        verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),
+        verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
     }
 

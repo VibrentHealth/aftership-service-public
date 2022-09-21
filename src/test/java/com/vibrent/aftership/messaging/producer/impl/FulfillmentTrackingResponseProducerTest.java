@@ -19,7 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
-public class TrackingResponseProducerTest {
+public class FulfillmentTrackingResponseProducerTest {
 
     private static final String TOPIC_NAME = "event.vxp.workflow.outbound";
     private static final String VXP_HEADER_VERSION = "2.1.3";
@@ -30,20 +30,20 @@ public class TrackingResponseProducerTest {
     private ExternalLogService externalLogService;
 
     @Mock
-    private KafkaTemplate<String, TrackDeliveryResponseDtoWrapper> kafkaTemplate;
+    private KafkaTemplate<String, FulfillmentTrackDeliveryResponseDto> kafkaTemplate;
 
     @Mock
     private ListenableFuture future;
 
-    private TrackingResponseProducer trackingResponseProducer;
+    private FulfillmentTrackingResponseProducer trackingResponseProducer;
 
-    private TrackDeliveryResponseDtoWrapper trackDeliveryResponseDtoWrapper;
+    private FulfillmentTrackDeliveryResponseDtoWrapper trackDeliveryResponseDtoWrapper;
     private MessageHeaderDto messageHeaderDto;
-    private TrackDeliveryResponseDto trackDeliveryResponseDto;
+    private FulfillmentTrackDeliveryResponseDto trackDeliveryResponseDto;
 
     @Before
     public void setup() {
-        trackingResponseProducer = new TrackingResponseProducer(kafkaTemplate, externalLogService, true, TOPIC_NAME);
+        trackingResponseProducer = new FulfillmentTrackingResponseProducer(kafkaTemplate, externalLogService, true, TOPIC_NAME);
         initializeTrackDeliveryResponseDtoWrapper();
     }
 
@@ -54,7 +54,7 @@ public class TrackingResponseProducerTest {
         trackingResponseProducer.send(trackDeliveryResponseDtoWrapper);
         verify(kafkaTemplate).send((Message<?>) any());
         verify(externalLogService).send(trackDeliveryResponseDtoWrapper, messageHeaderDto.getVxpMessageTimestamp(),
-                "AfterShip | Track Delivery Response sent", HttpStatus.OK);
+                "AfterShip | Fulfillment Track Delivery Response sent", HttpStatus.OK);
     }
 
     @DisplayName("When valid message is sent to Producer and exception while sending on kafka then verify externalLogService is invoked with error message")
@@ -64,7 +64,7 @@ public class TrackingResponseProducerTest {
         trackingResponseProducer.send(trackDeliveryResponseDtoWrapper);
         verify(kafkaTemplate).send((Message<?>) any());
         verify(externalLogService).send(trackDeliveryResponseDtoWrapper, messageHeaderDto.getVxpMessageTimestamp(),
-                "AfterShip | Failed to send Track Delivery Response", HttpStatus.INTERNAL_SERVER_ERROR);
+                "AfterShip | FAILED TO PUBLISH OUTGOING MESSAGE TO " + TOPIC_NAME, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
 
@@ -80,7 +80,7 @@ public class TrackingResponseProducerTest {
 
     @Test
     public void sendInvalidTrackDeliveryResponseDto() {
-        trackingResponseProducer.send(new TrackDeliveryResponseDtoWrapper(new byte[10], null));
+        trackingResponseProducer.send(new FulfillmentTrackDeliveryResponseDtoWrapper(new byte[10], null));
         verify(kafkaTemplate, times(0)).send((Message<?>) any());
         verify(externalLogService, times(0)).send(any(TrackDeliveryResponseDtoWrapper.class), anyLong(),
                 anyString(), any(HttpStatus.class));
@@ -90,21 +90,20 @@ public class TrackingResponseProducerTest {
     private void initializeTrackDeliveryResponseDtoWrapper() {
         initializeTrackDeliveryResponseDto();
         initializeMessageHeaderDto();
-        trackDeliveryResponseDtoWrapper = new TrackDeliveryResponseDtoWrapper(trackDeliveryResponseDto, messageHeaderDto);
+        trackDeliveryResponseDtoWrapper = new FulfillmentTrackDeliveryResponseDtoWrapper(trackDeliveryResponseDto, messageHeaderDto);
     }
 
     private void initializeTrackDeliveryResponseDto() {
-        trackDeliveryResponseDto = new TrackDeliveryResponseDto();
+        trackDeliveryResponseDto = new FulfillmentTrackDeliveryResponseDto();
         trackDeliveryResponseDto.setTrackingID("tracking_number_1");
-        trackDeliveryResponseDto.setDateTime(111122223333L);
-        trackDeliveryResponseDto.setStatus(StatusEnum.IN_TRANSIT);
-        trackDeliveryResponseDto.setProvider(ProviderEnum.USPS);
-        trackDeliveryResponseDto.setOperation(OperationEnum.TRACK_DELIVERY);
+        trackDeliveryResponseDto.setStatusTime(111122223333L);
+        trackDeliveryResponseDto.setStatus(TrackingStatusEnum.IN_TRANSIT);
+        trackDeliveryResponseDto.setCarrierCode(ProviderEnum.USPS.toValue());
         trackDeliveryResponseDto.setParticipant(getParticipant());
     }
 
-    private ParticipantDto getParticipant() {
-        ParticipantDto participantDto = new ParticipantDto();
+    private ParticipantDetailsDto getParticipant() {
+        ParticipantDetailsDto participantDto = new ParticipantDetailsDto();
         participantDto.setVibrentID(1000);
         participantDto.setExternalID("P1000");
         return participantDto;
@@ -115,7 +114,7 @@ public class TrackingResponseProducerTest {
         messageHeaderDto.setVxpMessageID(UUID.randomUUID().toString());
         messageHeaderDto.setVxpHeaderVersion(VXP_HEADER_VERSION);
         messageHeaderDto.setVxpWorkflowName(WorkflowNameEnum.SALIVARY_KIT_ORDER);
-        messageHeaderDto.setVxpMessageSpec(MessageSpecificationEnum.TRACK_DELIVERY_RESPONSE);
+        messageHeaderDto.setVxpMessageSpec(MessageSpecificationEnum.FULFILMENT_TRACK_DELIVERY_RESPONSE);
         messageHeaderDto.setVxpMessageTimestamp(System.currentTimeMillis());
         messageHeaderDto.setSource(SOURCE_AFTER_SHIP);
         messageHeaderDto.setVxpMessageSpecVersion(VXP_MESSAGE_SPEC_VERSION);

@@ -91,7 +91,10 @@ public class TrackDeliveryResponseConverterTest {
     @Test
     @DisplayName("When valid notificationDTO is provided then verify messageHeaderDto")
     void populateMessageHeaderDTO() {
-        MessageHeaderDto messageHeaderDto = trackDeliveryResponseConverter.populateMessageHeaderDTO(tracking, trackingRequest);
+        ParticipantDto participantDto = new ParticipantDto();
+        participantDto.setVibrentID(1000L);
+
+        MessageHeaderDto messageHeaderDto = trackDeliveryResponseConverter.populateMessageHeaderDTO(participantDto, trackingRequest);
         assertNotNull(messageHeaderDto.getVxpMessageID());
         assertEquals("2.1.3", messageHeaderDto.getVxpHeaderVersion());
         assertEquals(WorkflowNameEnum.SALIVARY_KIT_ORDER, messageHeaderDto.getVxpWorkflowName());
@@ -122,9 +125,8 @@ public class TrackDeliveryResponseConverterTest {
 
     private void initializeTrackingRequest() {
         trackingRequest = new TrackingRequest();
-        trackingRequest.setProvider(ProviderEnum.USPS);
+        trackingRequest.setProvider(ProviderEnum.USPS.toValue());
         trackingRequest.setOperation(OperationEnum.TRACK_DELIVERY);
         trackingRequest.setStatus(StatusEnum.PENDING_TRACKING.toValue());
-        trackingRequest.setProvider(ProviderEnum.USPS);
     }
 }

@@ -72,12 +72,12 @@ public class TrackingResponseProducer implements MessageProducer<TrackDeliveryRe
             Message<TrackDeliveryResponseDto> message = buildMessage(trackDeliveryResponseDto, headerDto, topicName);
             kafkaTemplate.send(message).addCallback(newSendResultListenableFutureCallback());
             externalLogService.send(msg, headerDto.getVxpMessageTimestamp(),
-                    "AfterShip | Produce a Message to Kafka topic: " + topicName, HttpStatus.OK);
+                    "AfterShip | Track Delivery Response sent", HttpStatus.OK);
         } catch (Exception e) {
             log.error("Failed to publish tracking update for trackDeliveryResponseDto with trackingID {}, exception= {}",
                     trackDeliveryResponseDto.getTrackingID(), e);
             externalLogService.send(msg, headerDto.getVxpMessageTimestamp(),
-                    "AfterShip | FAILED TO PUBLISH OUTGOING MESSAGE TO " + topicName, HttpStatus.INTERNAL_SERVER_ERROR);
+                    "AfterShip | Failed to send Track Delivery Response", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

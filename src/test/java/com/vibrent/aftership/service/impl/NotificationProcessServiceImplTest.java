@@ -1,9 +1,11 @@
 package com.vibrent.aftership.service.impl;
 
 import com.aftership.sdk.model.tracking.Tracking;
+import com.vibrent.aftership.converter.FulfillmentTrackDeliveryResponseConverter;
 import com.vibrent.aftership.converter.TrackDeliveryResponseConverter;
 import com.vibrent.aftership.domain.TrackingRequest;
 import com.vibrent.aftership.dto.NotificationDTO;
+import com.vibrent.aftership.messaging.producer.impl.FulfillmentTrackingResponseProducer;
 import com.vibrent.aftership.messaging.producer.impl.TrackingResponseProducer;
 import com.vibrent.aftership.repository.TrackingRequestRepository;
 import com.vibrent.aftership.service.NotificationProcessService;
@@ -19,8 +21,6 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.*;
 
-import static com.vibrent.aftership.constants.AfterShipConstants.TAG_DELIVERED;
-import static com.vibrent.aftership.constants.AfterShipConstants.TAG_EXCEPTION;
 import static com.vibrent.aftership.service.impl.TrackingRequestServiceImpl.CUSTOM_FIELD_EXTERNAL_ID;
 import static com.vibrent.aftership.service.impl.TrackingRequestServiceImpl.CUSTOM_FIELD_VIBRENT_ID;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,8 +33,13 @@ public class NotificationProcessServiceImplTest {
 
     private TrackDeliveryResponseConverter trackDeliveryResponseConverter;
 
+    private FulfillmentTrackDeliveryResponseConverter fulfillmentTrackDeliveryResponseConverter;
+
     @Mock
     private TrackingResponseProducer trackingResponseProducer;
+
+    @Mock
+    private FulfillmentTrackingResponseProducer fulfillmentTrackingResponseProducer;
 
     @Mock
     private TrackingRequestRepository trackingRequestRepository;
@@ -49,7 +54,8 @@ public class NotificationProcessServiceImplTest {
     public void setup() {
         initializeExceptionSubStatusList();
         trackDeliveryResponseConverter = new TrackDeliveryResponseConverter();
-        notificationProcessService = new NotificationProcessServiceImpl(trackDeliveryResponseConverter, trackingResponseProducer, trackingRequestRepository, exceptionSubStatus);
+        fulfillmentTrackDeliveryResponseConverter = new FulfillmentTrackDeliveryResponseConverter();
+        notificationProcessService = new NotificationProcessServiceImpl(trackDeliveryResponseConverter, fulfillmentTrackDeliveryResponseConverter, trackingResponseProducer, fulfillmentTrackingResponseProducer, trackingRequestRepository, exceptionSubStatus);
         initializeNotificationDTO();
         initializeTrackingRequest();
     }
@@ -60,6 +66,15 @@ public class NotificationProcessServiceImplTest {
         notificationProcessService.process(notificationDTO);
         verify(trackingResponseProducer).send(any());
         verify(trackingRequestRepository).save(any());
+    }
+
+    @Test
+    public void processFulfillmentDto() {
+        trackingRequest.setFulfillmentOrderID(1L);
+        when(this.trackingRequestRepository.findByTrackingId(notificationDTO.getMsg().getTrackingNumber())).thenReturn(Optional.of(trackingRequest));
+        notificationProcessService.process(notificationDTO);
+        verify(fulfillmentTrackingResponseProducer, times(1)).send(any());
+        verify(trackingRequestRepository, times(1)).save(any());
     }
 
     @Test
@@ -126,10 +141,41 @@ public class NotificationProcessServiceImplTest {
     @Test
     public void processGetTracking() {
         notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
-        verify(trackingResponseProducer).send(any());
-        verify(trackingRequestRepository).save(any());
+        verify(trackingResponseProducer, times(1)).send(any());
+        verify(trackingRequestRepository, times(1)).save(any());
     }
 
+    @DisplayName("When FulfillmentId is received in Tracking object then verify notification get process and tracking response sent")
+    @Test
+    public void processGetTrackingFulfillment() {
+        trackingRequest.setFulfillmentOrderID(1L);
+        notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
+        verify(fulfillmentTrackingResponseProducer, times(1)).send(any());
+        verify(trackingRequestRepository, times(1)).save(any());
+    }
+
+    @DisplayName("When FulfillmentId is received in Tracking object and status is received in Notification msg and status saved in DB is not null then verify tracking response not sent")
+    @Test
+    public void processGetTrackingFulfillmentUnknownTag() {
+        trackingRequest.setFulfillmentOrderID(1L);
+        notificationDTO.getMsg().setTag("Unknown");
+        notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
+        verify(trackingResponseProducer, times(0)).send(any());
+        verify(trackingRequestRepository, times(1)).save(any());
+    }
+
+    @DisplayName("When FulfillmentId is received in Tracking object and Exception status is received in Notification msg and status saved in DB is not null then verify tracking response not sent")
+    @Test
+    public void processGetTrackingFulfillmentReturnNull() {
+        trackingRequest.setFulfillmentOrderID(1L);
+        notificationDTO.getMsg().setTag("Exception");
+        notificationDTO.getMsg().setSubtag("Exception_007");
+        notificationProcessService.process(notificationDTO.getMsg(),trackingRequest);
+        verify(trackingResponseProducer, times(0)).send(any());
+        verify(trackingRequestRepository, times(1)).save(any());
+    }
+
+    @DisplayName("When same status is received in Notification msg then verify no tracking response not sent")
     @Test
     public void processGetTrackingWhenUnknownStatus() {
         notificationDTO.getMsg().setTag("Unknown");
@@ -256,10 +302,9 @@ public class NotificationProcessServiceImplTest {
 
     private void initializeTrackingRequest() {
         trackingRequest = new TrackingRequest();
-        trackingRequest.setProvider(ProviderEnum.USPS);
+        trackingRequest.setProvider(ProviderEnum.USPS.toValue());
         trackingRequest.setOperation(OperationEnum.TRACK_DELIVERY);
         trackingRequest.setStatus(StatusEnum.PENDING_TRACKING.toValue());
-        trackingRequest.setProvider(ProviderEnum.USPS);
     }
 
     private List<String> initializeExceptionSubStatusList() {

@@ -1,7 +1,6 @@
 package com.vibrent.aftership.domain;
 
 import com.vibrent.vxp.workflow.OperationEnum;
-import com.vibrent.vxp.workflow.ProviderEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +31,7 @@ public class TrackingRequest extends Auditable implements Serializable {
     private OperationEnum operation;
 
     @NotNull
-    @Enumerated(EnumType.STRING)
-    private ProviderEnum provider;
+    private String provider;
 
     @Column(name = "tracking_id")
     @NotNull
@@ -56,6 +54,9 @@ public class TrackingRequest extends Auditable implements Serializable {
 
     @Column(name = "carrier_response_type")
     private String carrierResponseType;
+
+    @Column(name = "fulfillment_order_id")
+    private Long fulfillmentOrderID;
 
     @Column
     private String header;

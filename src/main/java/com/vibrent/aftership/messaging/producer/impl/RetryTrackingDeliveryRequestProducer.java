@@ -33,12 +33,12 @@ public class RetryTrackingDeliveryRequestProducer implements MessageProducer<Ret
 
     @Override
     public void send(RetryRequestDTO msg) {
-        if (msg == null || msg.getTrackDeliveryRequestDto() == null) {
+        if (msg == null || msg.getTrackDeliveryRequestVo() == null) {
             log.warn("Aftership | Cannot publish retry tracking delivery request as Retry Request dto or track delivery request dto is null");
             return;
         }
         if (!kafkaEnabled) {
-            log.error("Kafka is not enabled - Failed to send update for retryRequest with trackingID {}", msg.getTrackDeliveryRequestDto().getTrackingID());
+            log.error("Kafka is not enabled - Failed to send update for retryRequest with trackingID {}", msg.getTrackDeliveryRequestVo().getTrackingID());
             return;
         }
         Message<RetryRequestDTO> retryRequestDTOMessage = buildMessage(msg, topicName);
@@ -46,12 +46,12 @@ public class RetryTrackingDeliveryRequestProducer implements MessageProducer<Ret
                 .addCallback(new ListenableFutureCallback<SendResult<String, RetryRequestDTO>>() {
                                  @Override
                                  public void onFailure(Throwable throwable) {
-                                     log.warn("Aftership | Fail to sent retry request for tracking. TrackingId : {}", msg.getTrackDeliveryRequestDto().getTrackingID());
+                                     log.warn("Aftership | Fail to sent retry request for tracking. TrackingId : {}", msg.getTrackDeliveryRequestVo().getTrackingID());
                                  }
 
                                  @Override
                                  public void onSuccess(SendResult<String, RetryRequestDTO> retryRequestDTOSendResult) {
-                                     log.debug("Aftership | Successfully sent retry request for tracking. TrackingId : {}", msg.getTrackDeliveryRequestDto().getTrackingID());
+                                     log.debug("Aftership | Successfully sent retry request for tracking. TrackingId : {}", msg.getTrackDeliveryRequestVo().getTrackingID());
                                  }
                              }
 

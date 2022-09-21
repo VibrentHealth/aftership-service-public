@@ -1,10 +1,9 @@
 package com.vibrent.aftership.messaging.producer.impl;
 
-import com.vibrent.aftership.dto.ExternalLogDTO;
 import com.vibrent.aftership.dto.RetryRequestDTO;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.ParticipantDto;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
+import com.vibrent.vxp.workflow.ParticipantDetailsDto;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -30,8 +29,6 @@ public class RetryTrackingDeliveryRequestProducerTest {
     private KafkaTemplate<String, RetryRequestDTO> kafkaTemplate;
 
     private RetryTrackingDeliveryRequestProducer messageProducer;
-
-    private ExternalLogDTO externalLogDTO;
 
     @Mock
     private ListenableFuture<SendResult<String, RetryRequestDTO>> future;
@@ -63,18 +60,18 @@ public class RetryTrackingDeliveryRequestProducerTest {
 
     private RetryRequestDTO buildRetryRequestDTO() {
         RetryRequestDTO retryRequestDTO = new RetryRequestDTO();
-        retryRequestDTO.setTrackDeliveryRequestDto(buildTrackDeliveryRequestDto());
+        retryRequestDTO.setTrackDeliveryRequestVo(buildTrackDeliveryRequestVo());
         retryRequestDTO.setMessageHeaderDto(new MessageHeaderDto());
         return retryRequestDTO;
     }
 
 
-    private static TrackDeliveryRequestDto buildTrackDeliveryRequestDto() {
-        ParticipantDto participant = new ParticipantDto();
+    private static TrackDeliveryRequestVo buildTrackDeliveryRequestVo() {
+        ParticipantDetailsDto participant = new ParticipantDetailsDto();
         participant.setVibrentID(123L);
         participant.setExternalID("p123L");
 
-        TrackDeliveryRequestDto requestDto = new TrackDeliveryRequestDto();
+        TrackDeliveryRequestVo requestDto = new TrackDeliveryRequestVo();
         requestDto.setParticipant(participant);
         requestDto.setTrackingID("trackingID");
         return requestDto;

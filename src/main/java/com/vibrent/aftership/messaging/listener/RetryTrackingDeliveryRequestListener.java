@@ -37,15 +37,20 @@ public class RetryTrackingDeliveryRequestListener {
             return;
         }
 
-        if (retryRequestDTO == null || retryRequestDTO.getTrackDeliveryRequestDto() == null || retryRequestDTO.getMessageHeaderDto() == null) {
+        if (retryRequestDTO == null || retryRequestDTO.getTrackDeliveryRequestVo() == null || retryRequestDTO.getMessageHeaderDto() == null) {
             log.warn("Aftership | Cannot process retry tracking delivery request as Retry Request dto is null. RetryRequestDTO: {}", retryRequestDTO);
             return;
         }
 
-        boolean trackDeliveryRequest = trackingRequestService.createTrackDeliveryRequest(retryRequestDTO.getTrackDeliveryRequestDto(), retryRequestDTO.getMessageHeaderDto());
-        if (trackDeliveryRequest && StringUtils.hasText(retryRequestDTO.getTrackDeliveryRequestDto().getTrackingID())) {
-            trackingRequestErrorRepository.deleteByTrackingId(retryRequestDTO.getTrackDeliveryRequestDto().getTrackingID());
-            log.info("AfterShip: Successfully retried tracking request for trackingID: {}",(retryRequestDTO.getTrackDeliveryRequestDto().getTrackingID()));
+        try {
+
+            boolean trackDeliveryRequest = trackingRequestService.createTrackDeliveryRequest(retryRequestDTO.getTrackDeliveryRequestVo(), retryRequestDTO.getMessageHeaderDto());
+            if (trackDeliveryRequest && StringUtils.hasText(retryRequestDTO.getTrackDeliveryRequestVo().getTrackingID())) {
+                trackingRequestErrorRepository.deleteByTrackingId(retryRequestDTO.getTrackDeliveryRequestVo().getTrackingID());
+                log.info("AfterShip: Successfully retried tracking request for trackingID: {}", (retryRequestDTO.getTrackDeliveryRequestVo().getTrackingID()));
+            }
+        } catch (Exception e) {
+            log.error("Error while retrying tracking request. {}", retryRequestDTO, e);
         }
     }
 }

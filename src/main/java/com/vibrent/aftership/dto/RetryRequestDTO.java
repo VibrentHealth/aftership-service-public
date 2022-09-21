@@ -1,7 +1,7 @@
 package com.vibrent.aftership.dto;
 
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RetryRequestDTO {
-    TrackDeliveryRequestDto trackDeliveryRequestDto;
+    TrackDeliveryRequestVo trackDeliveryRequestVo;
     MessageHeaderDto messageHeaderDto;
 }

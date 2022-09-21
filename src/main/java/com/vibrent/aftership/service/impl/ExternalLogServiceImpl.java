@@ -12,9 +12,8 @@ import com.vibrent.aftership.enums.ExternalServiceTypeEnum;
 import com.vibrent.aftership.messaging.producer.impl.ExternalLogProducer;
 import com.vibrent.aftership.service.ExternalLogService;
 import com.vibrent.aftership.util.JacksonUtil;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
-import com.vibrent.vxp.workflow.TrackDeliveryResponseDto;
-import com.vibrent.vxp.workflow.TrackDeliveryResponseDtoWrapper;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
+import com.vibrent.vxp.workflow.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,8 +37,6 @@ public class ExternalLogServiceImpl implements ExternalLogService {
     public static final String RESPONSE_NO_BODY = "RESPONSE WITH NO BODY";
     public static final String REQUEST_NO_BODY = "REQUEST WITH NO BODY";
     public static final String RESPONSE_NO_TRACKING_INFO = "RESPONSE WITH NO TRACKING INFO";
-    public static final String RESPONSE_NO_PARTICIPANT_INFO = "RESPONSE WITH NO PARTICIPANT INFO";
-    public static final String RESPONSE_NO_EXTERNAL_ID = "RESPONSE WITH NO PARTICIPANT EXTERNAL ID";
     public static final String VIBRENT_ID = "vibrentid";
     public static final String EXTERNAL_ID = "externalid";
 
@@ -47,29 +44,35 @@ public class ExternalLogServiceImpl implements ExternalLogService {
 
     private final String responseUrl;
     private final String afterShipBaseUrl;
+    private final String fulfillmentResponseUrl;
+    private final String fulfillmentRequestUrl;
 
     public ExternalLogServiceImpl(ExternalLogProducer externalLogProducer,
                                   @Value("${kafka.topics.tracking.response}") String responseUrl,
-                                  @Value("${afterShip.baseUrl}") String afterShipBaseUrl) {
+                                  @Value("${kafka.topics.track.response}") String fulfillmentResponseUrl,
+                                  @Value("${afterShip.baseUrl}") String afterShipBaseUrl,
+                                  @Value("${kafka.topics.track.request}") String fulfillmentRequestUrl) {
         this.externalLogProducer = externalLogProducer;
         this.responseUrl = responseUrl;
+        this.fulfillmentResponseUrl = fulfillmentResponseUrl;
         this.afterShipBaseUrl = afterShipBaseUrl;
+        this.fulfillmentRequestUrl = fulfillmentRequestUrl;
     }
 
     @Override
     public ExternalLogDTO send(TrackDeliveryResponseDtoWrapper trackDeliveryResponseDtoWrapper, Long responseTimeStamp, String description, HttpStatus httpStatus) {
-        Preconditions.checkArgument(responseTimeStamp != null, "Response Time Stamp cannot be null");
+        Preconditions.checkArgument(responseTimeStamp != null, " Response Time Stamp cannot be null");
 
-        ExternalLogDTO externalLogDTO = this.trackingResponseDTOToExternalLogDTO(trackDeliveryResponseDtoWrapper, responseTimeStamp, description, httpStatus);
+        ExternalLogDTO externalLogDTO = this.fulfillmentTrackingResponseDTOToExternalLogDTO(trackDeliveryResponseDtoWrapper, responseTimeStamp, description, httpStatus);
         this.externalLogProducer.send(externalLogDTO);
         return externalLogDTO;
     }
 
     @Override
-    public ExternalLogDTO send(TrackDeliveryRequestDto trackDeliveryRequestDto, Long responseTimeStamp, Integer statusCode,
+    public ExternalLogDTO send(TrackDeliveryRequestVo trackDeliveryRequestVo, Long responseTimeStamp, Integer statusCode,
                                NewTracking newTracking, Long requestTimeStamp, String responseBody, String description) {
         Preconditions.checkArgument(responseTimeStamp != null, "Response Time Stamp cannot be null");
-        ExternalLogDTO externalLogDTO = this.trackingRequestDTOToExternalLogDTO(trackDeliveryRequestDto, responseTimeStamp, statusCode,
+        ExternalLogDTO externalLogDTO = this.trackingRequestDTOToExternalLogDTO(trackDeliveryRequestVo, responseTimeStamp, statusCode,
                 newTracking, requestTimeStamp, responseBody, description);
         this.externalLogProducer.send(externalLogDTO);
         return externalLogDTO;
@@ -92,8 +95,8 @@ public class ExternalLogServiceImpl implements ExternalLogService {
     /* -------------------------------------------------------------------- */
     /*     private functions                                                */
     /* -------------------------------------------------------------------- */
-    private ExternalLogDTO trackingResponseDTOToExternalLogDTO(TrackDeliveryResponseDtoWrapper trackDeliveryResponseDtoWrapper,
-                                                               Long responseTimeStamp, String description, HttpStatus httpStatus) {
+    private ExternalLogDTO fulfillmentTrackingResponseDTOToExternalLogDTO(TrackDeliveryResponseDtoWrapper trackDeliveryResponseDtoWrapper,
+                                                                          Long responseTimeStamp, String description, HttpStatus httpStatus) {
         StringJoiner errorMsg = new StringJoiner(",").add(description);
         ExternalLogDTO externalLogDTO = new ExternalLogDTO();
         externalLogDTO.setService(ExternalServiceTypeEnum.AFTER_SHIP);
@@ -115,46 +118,32 @@ public class ExternalLogServiceImpl implements ExternalLogService {
 
         try {
             externalLogDTO.setResponseBody(JacksonUtil.getMapper().writeValueAsString(trackDeliveryResponseDtoWrapper));
+
+            if (trackDeliveryResponseDtoWrapper.getHeader() != null) {
+                externalLogDTO.setRequestHeaders(JacksonUtil.getMapper().writeValueAsString(trackDeliveryResponseDtoWrapper.getHeader()));
+            }
         } catch (JsonProcessingException e) {
             log.warn("AfterShip: Error while writing trackDeliveryResponseDtoWrapper to response body of externalLogDTO", e);
         }
 
-        if (trackDeliveryResponseDtoWrapper.getHeader() != null) {
-            externalLogDTO.setRequestHeaders(trackDeliveryResponseDtoWrapper.getHeader().toString());
-        } else {
-            httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-            errorMsg.add(RESPONSE_NO_HEADER);
-        }
-
-        TrackDeliveryResponseDto trackDeliveryResponseDto = null;
-
         try {
-            trackDeliveryResponseDto = trackDeliveryResponseDtoWrapper.getPayload();
+            TrackDeliveryResponseDto trackDeliveryResponseDto = trackDeliveryResponseDtoWrapper.getPayload();
+            if (trackDeliveryResponseDto.getParticipant() != null) {
+                externalLogDTO.setExternalId(trackDeliveryResponseDto.getParticipant().getExternalID());
+                externalLogDTO.setInternalId(trackDeliveryResponseDto.getParticipant().getVibrentID());
+            }
         } catch (IOException e) {
             log.warn("AfterShip: Error while getting payload from message: {}", trackDeliveryResponseDtoWrapper, e);
-        }
-
-        if (trackDeliveryResponseDto == null) {
             errorMsg.add(RESPONSE_NO_TRACKING_INFO);
             httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-        } else if (trackDeliveryResponseDto.getParticipant() != null) {
-            if (trackDeliveryResponseDto.getParticipant().getExternalID() != null) {
-                externalLogDTO.setExternalId(trackDeliveryResponseDto.getParticipant().getExternalID());
-            } else {
-                httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-                errorMsg.add(RESPONSE_NO_EXTERNAL_ID);
-            }
-            externalLogDTO.setInternalId(trackDeliveryResponseDto.getParticipant().getVibrentID());
-        } else {
-            errorMsg.add(RESPONSE_NO_PARTICIPANT_INFO);
-            httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
         }
+
         externalLogDTO.setDescription(errorMsg.toString());
         externalLogDTO.setResponseCode(httpStatus.value());
         return externalLogDTO;
     }
 
-    private ExternalLogDTO trackingRequestDTOToExternalLogDTO(TrackDeliveryRequestDto trackDeliveryRequestDto,
+    private ExternalLogDTO trackingRequestDTOToExternalLogDTO(TrackDeliveryRequestVo trackDeliveryRequestVo,
                                                               Long responseTimeStamp, Integer statusCode, NewTracking newTracking,
                                                               Long requestTimeStamp, String responseBody, String description) {
         StringJoiner errorMsg = new StringJoiner(",").add(description);
@@ -184,9 +173,9 @@ public class ExternalLogServiceImpl implements ExternalLogService {
 
         externalLogDTO.setResponseBody(responseBody);
 
-        if (trackDeliveryRequestDto.getParticipant() != null) {
-            externalLogDTO.setExternalId(trackDeliveryRequestDto.getParticipant().getExternalID());
-            externalLogDTO.setInternalId(trackDeliveryRequestDto.getParticipant().getVibrentID());
+        if (trackDeliveryRequestVo.getParticipant() != null) {
+            externalLogDTO.setExternalId(trackDeliveryRequestVo.getParticipant().getExternalID());
+            externalLogDTO.setInternalId(trackDeliveryRequestVo.getParticipant().getVibrentID());
         }
         externalLogDTO.setDescription(errorMsg.toString());
         externalLogDTO.setResponseCode(statusCode);
@@ -239,5 +228,111 @@ public class ExternalLogServiceImpl implements ExternalLogService {
         return externalLogDTO;
     }
 
+    @Override
+    public ExternalLogDTO send(FulfillmentTrackDeliveryResponseDtoWrapper fulfillmentTrackDeliveryResponseDtoWrapper, Long responseTimeStamp, String description, HttpStatus httpStatus) {
+        Preconditions.checkArgument(responseTimeStamp != null, "Response Time Stamp cannot be null");
 
+        ExternalLogDTO externalLogDTO = this.fulfillmentTrackingResponseDTOToExternalLogDTO(fulfillmentTrackDeliveryResponseDtoWrapper, responseTimeStamp, description, httpStatus);
+        this.externalLogProducer.send(externalLogDTO);
+        return externalLogDTO;
+    }
+
+    private ExternalLogDTO fulfillmentTrackingResponseDTOToExternalLogDTO(FulfillmentTrackDeliveryResponseDtoWrapper fulfillmentTrackDeliveryResponseDtoWrapper,
+                                                                          Long responseTimeStamp, String description, HttpStatus httpStatus) {
+        StringJoiner errorMsg = new StringJoiner(",").add(description);
+        ExternalLogDTO externalLogDto = new ExternalLogDTO();
+        externalLogDto.setService(ExternalServiceTypeEnum.AFTER_SHIP);
+        externalLogDto.setEventSource(ExternalEventSourceEnum.AFTER_SHIP_SERVICE);
+        externalLogDto.setHttpMethod(RequestMethod.POST);
+        externalLogDto.setRequestUrl(fulfillmentResponseUrl);
+
+        externalLogDto.setResponseTimestamp(responseTimeStamp);
+        externalLogDto.setRequestTimestamp(responseTimeStamp);
+
+        externalLogDto.setEventType(ExternalEventEnum.FULFILLMENT_TRACK_DELIVERY_RESPONSE_SENT);
+
+        if (fulfillmentTrackDeliveryResponseDtoWrapper == null) {
+            errorMsg.add(RESPONSE_NO_BODY);
+            externalLogDto.setDescription(errorMsg.toString());
+            externalLogDto.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
+            return externalLogDto;
+        }
+
+        try {
+            externalLogDto.setResponseBody(JacksonUtil.getMapper().writeValueAsString(fulfillmentTrackDeliveryResponseDtoWrapper.getPayload()));
+
+            if (fulfillmentTrackDeliveryResponseDtoWrapper.getHeader() != null) {
+                externalLogDto.setRequestHeaders(JacksonUtil.getMapper().writeValueAsString(fulfillmentTrackDeliveryResponseDtoWrapper.getHeader()));
+            }
+        } catch (IOException e) {
+            log.warn("AfterShip: Error while writing fulfillmentTrackDeliveryResponseDtoWrapper to response body of externalLogDTO", e);
+        }
+
+
+        try {
+            FulfillmentTrackDeliveryResponseDto fulfillmentTrackDeliveryResponseDto = fulfillmentTrackDeliveryResponseDtoWrapper.getPayload();
+            if (fulfillmentTrackDeliveryResponseDto.getParticipant() != null) {
+                externalLogDto.setExternalId(fulfillmentTrackDeliveryResponseDto.getParticipant().getExternalID());
+                externalLogDto.setInternalId(fulfillmentTrackDeliveryResponseDto.getParticipant().getVibrentID());
+            }
+        } catch (IOException e) {
+            log.warn("AfterShip: Error while getting payload from message: {}", fulfillmentTrackDeliveryResponseDtoWrapper, e);
+            errorMsg.add(RESPONSE_NO_TRACKING_INFO);
+            httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+
+        externalLogDto.setDescription(errorMsg.toString());
+        externalLogDto.setResponseCode(httpStatus.value());
+        return externalLogDto;
+    }
+
+
+    @Override
+    public ExternalLogDTO send(FulfillmentTrackDeliveryRequestDtoWrapper fulfillmentTrackDeliveryRequestDtoWrapper) {
+
+        //Build External LogDTO
+        StringJoiner description = new StringJoiner(",").add("AfterShip | Received Fulfillment TrackDelivery Request.");
+        ExternalLogDTO externalLogDto = new ExternalLogDTO();
+        externalLogDto.setService(ExternalServiceTypeEnum.AFTER_SHIP);
+        externalLogDto.setEventSource(ExternalEventSourceEnum.AFTER_SHIP_SERVICE);
+        externalLogDto.setHttpMethod(RequestMethod.GET);
+        externalLogDto.setRequestUrl(fulfillmentRequestUrl);
+
+        externalLogDto.setRequestTimestamp(System.currentTimeMillis());
+        externalLogDto.setResponseTimestamp(System.currentTimeMillis());
+
+        externalLogDto.setEventType(ExternalEventEnum.FULFILLMENT_TRACK_DELIVERY_REQUEST_RECEIVED);
+
+        if (fulfillmentTrackDeliveryRequestDtoWrapper == null) {
+            description.add(RESPONSE_NO_BODY);
+            externalLogDto.setDescription(description.toString());
+            externalLogDto.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
+            return externalLogDto;
+        }
+
+        try {
+            FulfillmentTrackDeliveryRequestDto fulfillmentTrackDeliveryRequestDto = fulfillmentTrackDeliveryRequestDtoWrapper.getPayload();
+            if (fulfillmentTrackDeliveryRequestDto.getParticipant() != null) {
+                externalLogDto.setExternalId(fulfillmentTrackDeliveryRequestDto.getParticipant().getExternalID());
+                externalLogDto.setInternalId(fulfillmentTrackDeliveryRequestDto.getParticipant().getVibrentID());
+            }
+
+            externalLogDto.setResponseBody(JacksonUtil.getMapper().writeValueAsString(fulfillmentTrackDeliveryRequestDto));
+
+            if (fulfillmentTrackDeliveryRequestDtoWrapper.getHeader() != null) {
+                externalLogDto.setRequestHeaders(JacksonUtil.getMapper().writeValueAsString(fulfillmentTrackDeliveryRequestDtoWrapper.getHeader()));
+            }
+
+        } catch (IOException e) {
+            log.warn("AfterShip: Error while getting payload from message: {}", fulfillmentTrackDeliveryRequestDtoWrapper, e);
+
+        }
+
+        externalLogDto.setDescription(description.toString());
+        externalLogDto.setResponseCode(HttpStatus.OK.value());
+
+        //Send Message
+        this.externalLogProducer.send(externalLogDto);
+        return externalLogDto;
+    }
 }

@@ -215,10 +215,9 @@ class GetTrackingJobTest extends IntegrationTestBase {
     private TrackingRequest initializeTrackingRequest(String carrierResponseType, String carrierResponse) {
         trackingRequest = new TrackingRequest();
         trackingRequest.setTrackingId("123456789");
-        trackingRequest.setProvider(ProviderEnum.USPS);
+        trackingRequest.setProvider(ProviderEnum.USPS.toValue());
         trackingRequest.setOperation(OperationEnum.TRACK_DELIVERY);
         trackingRequest.setStatus(StatusEnum.PENDING_TRACKING.toValue());
-        trackingRequest.setProvider(ProviderEnum.USPS);
         trackingRequest.setParticipant("{\"vibrentId\": 71019410, \"externalId\": \"P512268268\", \"phoneNumber\": \"1234567890\", \"emailAddress\": \"emailaddress@abc.com\"}");
         trackingRequest.setHeader("{\"source\":\"AfterShip\",\"VXP-Header-Version\":\"2.1.3\",\"VXP-Message-Id\":\"MessageID_1\",\"VXP-Message-Spec\":\"TRACK_DELIVERY_RESPONSE\",\"VXP-Message-Spec-Version\":\"2.1.2\",\"VXP-Message-Timestamp\":1630645343162,\"VXP-Originator\":\"PTBE\",\"VXP-Pattern\":\"WORKFLOW\",\"VXP-Trigger\":\"EVENT\",\"VXP-User-ID\":71019410,\"VXP-Workflow-Instance-ID\":\"WorkflowInstanceID_1\",\"VXP-Workflow-Name\":\"SALIVARY_KIT_ORDER\"}");
         trackingRequest.setCarrierResponseType(carrierResponseType);

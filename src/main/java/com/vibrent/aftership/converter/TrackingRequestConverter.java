@@ -3,9 +3,11 @@ package com.vibrent.aftership.converter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vibrent.aftership.domain.TrackingRequest;
 import com.vibrent.aftership.util.JacksonUtil;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
+import com.vibrent.vxp.workflow.OperationEnum;
+import com.vibrent.vxp.workflow.ProviderEnum;
 import com.vibrent.vxp.workflow.StatusEnum;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -13,24 +15,25 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrackingRequestConverter {
 
-    public TrackingRequest toTrackingRequest(TrackDeliveryRequestDto trackDeliveryRequestDto, MessageHeaderDto messageHeader) {
-        if (trackDeliveryRequestDto == null || messageHeader == null) {
+    public TrackingRequest toTrackingRequest(TrackDeliveryRequestVo trackDeliveryRequestVo, MessageHeaderDto messageHeader) {
+        if (trackDeliveryRequestVo == null || messageHeader == null) {
             log.warn("AfterShip: Null trackDeliveryRequestDto or messageHeader is provided to converter");
             return null;
         }
         TrackingRequest trackingRequest = new TrackingRequest();
-        trackingRequest.setTrackingId(trackDeliveryRequestDto.getTrackingID());
-        trackingRequest.setOperation(trackDeliveryRequestDto.getOperation());
-        trackingRequest.setProvider(trackDeliveryRequestDto.getProvider());
+        trackingRequest.setTrackingId(trackDeliveryRequestVo.getTrackingID());
+        trackingRequest.setFulfillmentOrderID(trackDeliveryRequestVo.getFulfillmentOrderID());
+        trackingRequest.setOperation(OperationEnum.TRACK_DELIVERY);
+        trackingRequest.setProvider(trackDeliveryRequestVo.getCarrierCode());
         trackingRequest.setStatus(StatusEnum.PENDING_TRACKING.toValue());
-        trackingRequest.setParticipant(getParticipant(trackDeliveryRequestDto));
+        trackingRequest.setParticipant(getParticipant(trackDeliveryRequestVo));
         trackingRequest.setHeader(getMessageHeaders(messageHeader));
         return trackingRequest;
     }
 
-    private String getParticipant(TrackDeliveryRequestDto trackDeliveryRequestDto) {
+    private String getParticipant(TrackDeliveryRequestVo trackDeliveryRequestVo) {
         try {
-            return JacksonUtil.getMapper().writeValueAsString(trackDeliveryRequestDto.getParticipant());
+            return JacksonUtil.getMapper().writeValueAsString(trackDeliveryRequestVo.getParticipant());
         } catch (JsonProcessingException e) {
             log.warn("AfterShip: Error while writing participant DTO as string value", e);
         }

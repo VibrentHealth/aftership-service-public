@@ -5,8 +5,8 @@ import com.vibrent.aftership.domain.TrackingRequestError;
 import com.vibrent.aftership.exception.AfterShipException;
 import com.vibrent.aftership.repository.TrackingRequestErrorRepository;
 import com.vibrent.aftership.util.JacksonUtil;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
-import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -22,28 +22,28 @@ public class TrackingRequestErrorConverter {
         this.trackingRequestErrorRepository = trackingRequestErrorRepository;
     }
 
-    public TrackingRequestError toTrackingRequestError(TrackDeliveryRequestDto trackDeliveryRequestDto,
+    public TrackingRequestError toTrackingRequestError(TrackDeliveryRequestVo trackDeliveryRequestVo,
                                                        MessageHeaderDto messageHeaderDto,
                                                        Throwable throwable) {
-        if (trackDeliveryRequestDto == null || messageHeaderDto == null) {
+        if (trackDeliveryRequestVo == null || messageHeaderDto == null) {
             log.warn("AfterShip: Null trackDeliveryRequestDto or messageHeader is provided to TrackingRequestErrorConverter");
             return null;
         }
-        Optional<TrackingRequestError> optionalTrackingRequestError = this.trackingRequestErrorRepository.findByTrackingId(trackDeliveryRequestDto.getTrackingID());
+        Optional<TrackingRequestError> optionalTrackingRequestError = this.trackingRequestErrorRepository.findByTrackingId(trackDeliveryRequestVo.getTrackingID());
         TrackingRequestError trackingRequestError = optionalTrackingRequestError.orElse(new TrackingRequestError());
-        trackingRequestError.setTrackingId(trackDeliveryRequestDto.getTrackingID());
+        trackingRequestError.setTrackingId(trackDeliveryRequestVo.getTrackingID());
         if(throwable instanceof AfterShipException) {
             trackingRequestError.setErrorCode(((AfterShipException) throwable).getErrorCode());
         }
-        trackingRequestError.setTrackDeliveryRequest(getTrackDeliveryRequest(trackDeliveryRequestDto));
+        trackingRequestError.setTrackDeliveryRequest(getTrackDeliveryRequest(trackDeliveryRequestVo));
         trackingRequestError.setHeader(getMessageHeaders(messageHeaderDto));
         trackingRequestError.setRetryCount(trackingRequestError.getRetryCount() == null ? 0 : (trackingRequestError.getRetryCount() + 1));
         return trackingRequestError;
     }
 
-    private String getTrackDeliveryRequest(TrackDeliveryRequestDto trackDeliveryRequestDto) {
+    private String getTrackDeliveryRequest(TrackDeliveryRequestVo trackDeliveryRequestVo) {
         try {
-            return JacksonUtil.getMapper().writeValueAsString(trackDeliveryRequestDto);
+            return JacksonUtil.getMapper().writeValueAsString(trackDeliveryRequestVo);
         } catch (JsonProcessingException e) {
             log.warn("AfterShip: Error while converting trackDeliveryRequestDto as String value", e);
         }

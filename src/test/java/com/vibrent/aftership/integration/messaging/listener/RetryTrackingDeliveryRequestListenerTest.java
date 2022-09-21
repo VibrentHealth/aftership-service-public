@@ -1,9 +1,13 @@
 package com.vibrent.aftership.integration.messaging.listener;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.vibrent.aftership.dto.RetryRequestDTO;
 import com.vibrent.aftership.messaging.listener.RetryTrackingDeliveryRequestListener;
 import com.vibrent.aftership.repository.TrackingRequestErrorRepository;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,12 +16,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.messaging.MessageHeaders;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -51,7 +58,7 @@ class RetryTrackingDeliveryRequestListenerTest {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(false, trackingRequestService, trackingRequestErrorRepository);
         retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
 
-        verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),
+        verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
     }
 
@@ -63,7 +70,7 @@ class RetryTrackingDeliveryRequestListenerTest {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
         retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
 
-        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),
+        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
     }
 
@@ -73,10 +80,10 @@ class RetryTrackingDeliveryRequestListenerTest {
     @Test
     void testWhenRetryTrackDeliveryRequestMsgIsReceivedAndTrackingGetSuccess() {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
-        when(trackingRequestService.createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),any(MessageHeaderDto.class))).thenReturn(true);
+        when(trackingRequestService.createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),any(MessageHeaderDto.class))).thenReturn(true);
         retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
 
-        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),
+        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
         verify(trackingRequestErrorRepository, times(1)).deleteByTrackingId(anyString());
     }
@@ -87,35 +94,91 @@ class RetryTrackingDeliveryRequestListenerTest {
     @Test
     void testWhenRetryTrackDeliveryRequestMsgIsReceivedAndTrackingGetFailed() {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
-        when(trackingRequestService.createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),any(MessageHeaderDto.class))).thenReturn(false);
+        when(trackingRequestService.createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),any(MessageHeaderDto.class))).thenReturn(false);
         retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
 
-        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestDto.class),
+        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
         verify(trackingRequestErrorRepository, times(0)).deleteByTrackingId(anyString());
     }
 
 
+    @DisplayName("when Retry Track Delivery Request message is received with null tracking " +
+            "then verify message is not processed.")
+    @Test
+    void warnWhenRetryTrackDeliveryRequestMsgHavingNullTrackingRequest() {
+        retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
+        var requestDto=createRetryRequestDTO();
+        requestDto.setTrackDeliveryRequestVo(null);
+        Logger logger = (Logger) LoggerFactory.getLogger(RetryTrackingDeliveryRequestListener.class);
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        logger.addAppender(listAppender);
+        listAppender.start();
+
+        retryTrackingDeliveryRequestListener.listener(requestDto);
+
+        var logList = listAppender.list;
+        assertEquals("WARN",logList.get(0).getLevel().toString());
+        assertTrue(logList.get(0).getMessage().contains("Cannot process retry tracking delivery request"));
+        verify(trackingRequestService, Mockito.timeout(3000).times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
+                any(MessageHeaderDto.class));
+    }
+
+    @DisplayName("when Retry Track Delivery Request message is received with null message header " +
+            "then verify message is not processed.")
+    @Test
+    void warnWhenRetryTrackDeliveryRequestMsgHavingNullMessageHeader() {
+        retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
+        var requestDto=createRetryRequestDTO();
+        requestDto.setMessageHeaderDto(null);
+        Logger logger = (Logger) LoggerFactory.getLogger(RetryTrackingDeliveryRequestListener.class);
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        logger.addAppender(listAppender);
+        listAppender.start();
+
+        retryTrackingDeliveryRequestListener.listener(requestDto);
+
+        var logList = listAppender.list;
+        assertEquals("WARN",logList.get(0).getLevel().toString());
+        assertTrue(logList.get(0).getMessage().contains("Cannot process retry tracking delivery request"));
+        verify(trackingRequestService, Mockito.timeout(3000).times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
+                any(MessageHeaderDto.class));
+    }
+
+    @DisplayName("when null Retry Track Delivery Request message is received " +
+            "then message is not processed.")
+    @Test
+    void warnWhenNullRetryTrackDeliveryRequestMsg() {
+        retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
+        Logger logger = (Logger) LoggerFactory.getLogger(RetryTrackingDeliveryRequestListener.class);
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        logger.addAppender(listAppender);
+        listAppender.start();
+
+        retryTrackingDeliveryRequestListener.listener(null);
+
+        var logList = listAppender.list;
+        assertEquals("WARN",logList.get(0).getLevel().toString());
+        assertTrue(logList.get(0).getMessage().contains("Cannot process retry tracking delivery request"));
+        verify(trackingRequestService, Mockito.timeout(3000).times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
+                any(MessageHeaderDto.class));
+    }
+
     RetryRequestDTO createRetryRequestDTO() {
-        RetryRequestDTO retryRequestDTO = new RetryRequestDTO(getTrackDeliveryRequestDto(), getMessageHeaderDto());
+        RetryRequestDTO retryRequestDTO = new RetryRequestDTO(getTrackDeliveryRequestVo(), getMessageHeaderDto());
         return retryRequestDTO;
     }
 
-    TrackDeliveryRequestDto getTrackDeliveryRequestDto() {
+    TrackDeliveryRequestVo getTrackDeliveryRequestVo() {
 
-        ParticipantDto participantDto = new ParticipantDto();
+        ParticipantDetailsDto participantDto = new ParticipantDetailsDto();
         participantDto.setExternalID("P1000");
         participantDto.setVibrentID(1000L);
-        participantDto.setEmailAddress("emailaddress@abc.com");
-        participantDto.setPhoneNumber("1234567890");
-
-        TrackDeliveryRequestDto trackDeliveryRequestDto = new TrackDeliveryRequestDto();
-        trackDeliveryRequestDto.setTrackingID(TRACKING_ID);
-        trackDeliveryRequestDto.setOperation(OperationEnum.TRACK_DELIVERY);
-        trackDeliveryRequestDto.setProvider(ProviderEnum.USPS);
-        trackDeliveryRequestDto.setParticipant(participantDto);
-
-        return trackDeliveryRequestDto;
+        TrackDeliveryRequestVo trackDeliveryRequestVo = new TrackDeliveryRequestVo();
+        trackDeliveryRequestVo.setTrackingID(TRACKING_ID);
+        trackDeliveryRequestVo.setCarrierCode(ProviderEnum.USPS.name());
+        trackDeliveryRequestVo.setParticipant(participantDto);
+        return trackDeliveryRequestVo;
     }
 
     MessageHeaderDto getMessageHeaderDto() {

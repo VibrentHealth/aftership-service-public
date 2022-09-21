@@ -2,6 +2,7 @@ package com.vibrent.aftership.configuration;
 
 import com.vibrent.aftership.constants.KafkaConstants;
 import com.vibrent.aftership.dto.RetryRequestDTO;
+import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryRequestDto;
 import com.vibrent.vxp.workflow.MessageSpecificationEnum;
 import com.vibrent.vxp.workflow.TrackDeliveryRequestDto;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class KafkaConsumerConfig {
 
     private static final String TRACKING_REQUEST_GROUP_ID = "AFTER_SHIP_TRACKING_REQUEST_GROUP_ID";
     private static final String RETRY_TRACKING_REQUEST_GROUP_ID = "AFTER_SHIP_RETRY_TRACKING_REQUEST_GROUP_ID";
+    private static final String FULFILLMENT_TRACKING_REQUEST_GROUP_ID = "AFTER_SHIP_FULFILLMENT_TRACKING_REQUEST_GROUP_ID";
     private final String bootstrapServers;
     private final int defaultConcurrency;
 
@@ -125,4 +127,35 @@ public class KafkaConsumerConfig {
         factory.getContainerProperties().setPollTimeout(KafkaConstants.POLL_TIMEOUT);
         return factory;
     }
+
+    @Bean
+    public ConsumerFactory<String, FulfillmentTrackDeliveryRequestDto> fulfillmentTrackDeliveryRequestConsumerFactory() {
+        Map<String, Object> consumerConfigProps = getConfigProps();
+        consumerConfigProps.put(ConsumerConfig.GROUP_ID_CONFIG, FULFILLMENT_TRACKING_REQUEST_GROUP_ID);
+        consumerConfigProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        consumerConfigProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, null, getJsonDeserializer(FulfillmentTrackDeliveryRequestDto.class));
+    }
+
+    @Bean
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, FulfillmentTrackDeliveryRequestDto>> kafkaListenerContainerFactoryFulfillmentTrackDeliveryRequest() {
+        ConcurrentKafkaListenerContainerFactory<String, FulfillmentTrackDeliveryRequestDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(fulfillmentTrackDeliveryRequestConsumerFactory());
+        factory.setConcurrency(defaultConcurrency);
+        factory.getContainerProperties().setPollTimeout(KafkaConstants.POLL_TIMEOUT);
+        factory.setRecordFilterStrategy(consumerRecord -> {
+            String messageSpec = extractHeader(consumerRecord.headers(), KafkaConstants.VXP_MESSAGE_SPEC);
+
+            //discard the Record if MessageSpecification is not equal to FULFILMENT_TRACK_DELIVERY_REQUEST
+            final boolean canDiscardRecord = null == messageSpec
+                    || !MessageSpecificationEnum.FULFILMENT_TRACK_DELIVERY_REQUEST.toString().equals(messageSpec);
+
+            if (canDiscardRecord) {
+                log.info("aftership-service: Discarding the Non FULFILMENT_TRACK_DELIVERY_REQUEST. Request Type: {}", messageSpec);
+            }
+            return canDiscardRecord;
+        });
+        return factory;
+    }
+
 }
