@@ -4,9 +4,11 @@ package com.vibrent.aftership.messaging.listener;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vibrent.aftership.converter.TrackDeliveryRequestConverter;
 import com.vibrent.aftership.service.ExternalLogService;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.util.JacksonUtil;
 import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryRequestDto;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
@@ -49,7 +51,7 @@ public class FulfillmentTrackDeliveryRequestListenerTest {
     @DisplayName("when non FulfillmentTrackDeliveryRequest message is received " +
             "then verify message is not processed.")
     @Test
-    void shouldNotProcessWhenKafkaIsNotEnabled() {
+    void shouldNotProcessWhenKafkaIsNotEnabled() throws JsonProcessingException {
         Message<FulfillmentTrackDeliveryRequestDto> message = buildMessage(new FulfillmentTrackDeliveryRequestDto(), MessageSpecificationEnum.WORKFLOW_REQUEST);
 
         Logger logger = (Logger) LoggerFactory.getLogger(FulfillmentTrackDeliveryRequestListener.class);
@@ -57,7 +59,7 @@ public class FulfillmentTrackDeliveryRequestListenerTest {
         logger.addAppender(listAppender);
         listAppender.start();
 
-        fulfillmentTrackDeliveryRequestListener.listener(message.getPayload(), message.getHeaders());
+        fulfillmentTrackDeliveryRequestListener.listener(buildPayload(message.getPayload()), message.getHeaders());
         List<ILoggingEvent> logsList = listAppender.list;
         assertEquals("INFO", logsList.get(0).getLevel().toString());
         verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class), any(MessageHeaderDto.class));
@@ -66,7 +68,7 @@ public class FulfillmentTrackDeliveryRequestListenerTest {
     @DisplayName("when non FulfillmentTrackDeliveryRequest message is received " +
             "then verify message is not processed.")
     @Test
-    void ignoreTrackDeliveryRequestWhenKafkaIsDisabled() {
+    void ignoreTrackDeliveryRequestWhenKafkaIsDisabled() throws JsonProcessingException {
 
         fulfillmentTrackDeliveryRequestListener = new FulfillmentTrackDeliveryRequestListener(false, trackingRequestService, trackDeliveryRequestConverter, externalLogService);
         Message<FulfillmentTrackDeliveryRequestDto> message = buildMessage(new FulfillmentTrackDeliveryRequestDto(), MessageSpecificationEnum.FULFILMENT_TRACK_DELIVERY_REQUEST);
@@ -75,7 +77,7 @@ public class FulfillmentTrackDeliveryRequestListenerTest {
         logger.addAppender(listAppender);
         listAppender.start();
 
-        fulfillmentTrackDeliveryRequestListener.listener(message.getPayload(), message.getHeaders());
+        fulfillmentTrackDeliveryRequestListener.listener(buildPayload(message.getPayload()), message.getHeaders());
         List<ILoggingEvent> logsList = listAppender.list;
         assertEquals("WARN", logsList.get(0).getLevel().toString());
     }
@@ -89,5 +91,8 @@ public class FulfillmentTrackDeliveryRequestListenerTest {
         messageBuilder.setHeader(VXP_PATTERN, "WORKFLOW");
         messageBuilder.setHeader(VXP_ORIGINATOR, "PTBE");
         return messageBuilder.build();
+    }
+    private byte[] buildPayload(FulfillmentTrackDeliveryRequestDto fulfillmentTrackDeliveryRequestDto) throws JsonProcessingException {
+        return JacksonUtil.getMapper().writeValueAsBytes(fulfillmentTrackDeliveryRequestDto);
     }
 }

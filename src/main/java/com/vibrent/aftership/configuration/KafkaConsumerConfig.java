@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -78,17 +79,17 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, TrackDeliveryRequestDto> trackDeliveryRequestConsumerFactory() {
+    public ConsumerFactory<String, byte[]> trackDeliveryRequestConsumerFactory() {
         Map<String, Object> consumerConfigProps = getConfigProps();
         consumerConfigProps.put(ConsumerConfig.GROUP_ID_CONFIG, TRACKING_REQUEST_GROUP_ID);
         consumerConfigProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         consumerConfigProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, null, getJsonDeserializer(TrackDeliveryRequestDto.class));
+        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, new StringDeserializer(), new ByteArrayDeserializer());
     }
 
     @Bean
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, TrackDeliveryRequestDto>> kafkaListenerContainerFactoryTrackDeliveryRequest() {
-        ConcurrentKafkaListenerContainerFactory<String, TrackDeliveryRequestDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, byte[]>> kafkaListenerContainerFactoryTrackDeliveryRequest() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(trackDeliveryRequestConsumerFactory());
         factory.setConcurrency(defaultConcurrency);
         factory.getContainerProperties().setPollTimeout(KafkaConstants.POLL_TIMEOUT);
@@ -110,18 +111,18 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, RetryRequestDTO> retryTrackDeliveryRequestConsumerFactory() {
+    public ConsumerFactory<String, byte[]> retryTrackDeliveryRequestConsumerFactory() {
         Map<String, Object> consumerConfigProps = getConfigProps();
         consumerConfigProps.put(ConsumerConfig.GROUP_ID_CONFIG, RETRY_TRACKING_REQUEST_GROUP_ID);
         consumerConfigProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         consumerConfigProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, null, getJsonDeserializer(RetryRequestDTO.class));
+        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, new StringDeserializer(), new ByteArrayDeserializer());
     }
 
     @Bean
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, RetryRequestDTO>> kafkaListenerContainerFactoryRetryTrackDeliveryRequest() {
-        ConcurrentKafkaListenerContainerFactory<String, RetryRequestDTO> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, byte[]>> kafkaListenerContainerFactoryRetryTrackDeliveryRequest() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(retryTrackDeliveryRequestConsumerFactory());
         factory.setConcurrency(defaultConcurrency);
         factory.getContainerProperties().setPollTimeout(KafkaConstants.POLL_TIMEOUT);
@@ -129,17 +130,17 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, FulfillmentTrackDeliveryRequestDto> fulfillmentTrackDeliveryRequestConsumerFactory() {
+    public ConsumerFactory<String, byte[]> fulfillmentTrackDeliveryRequestConsumerFactory() {
         Map<String, Object> consumerConfigProps = getConfigProps();
         consumerConfigProps.put(ConsumerConfig.GROUP_ID_CONFIG, FULFILLMENT_TRACKING_REQUEST_GROUP_ID);
         consumerConfigProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         consumerConfigProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, null, getJsonDeserializer(FulfillmentTrackDeliveryRequestDto.class));
+        return new DefaultKafkaConsumerFactory<>(consumerConfigProps, new StringDeserializer(), new ByteArrayDeserializer());
     }
 
     @Bean
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, FulfillmentTrackDeliveryRequestDto>> kafkaListenerContainerFactoryFulfillmentTrackDeliveryRequest() {
-        ConcurrentKafkaListenerContainerFactory<String, FulfillmentTrackDeliveryRequestDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, byte[]>> kafkaListenerContainerFactoryFulfillmentTrackDeliveryRequest() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(fulfillmentTrackDeliveryRequestConsumerFactory());
         factory.setConcurrency(defaultConcurrency);
         factory.getContainerProperties().setPollTimeout(KafkaConstants.POLL_TIMEOUT);

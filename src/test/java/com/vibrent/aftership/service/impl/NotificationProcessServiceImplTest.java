@@ -21,8 +21,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.*;
 
-import static com.vibrent.aftership.service.impl.TrackingRequestServiceImpl.CUSTOM_FIELD_EXTERNAL_ID;
-import static com.vibrent.aftership.service.impl.TrackingRequestServiceImpl.CUSTOM_FIELD_VIBRENT_ID;
+import static com.vibrent.aftership.service.impl.TrackingRequestServiceImpl.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -55,7 +54,7 @@ public class NotificationProcessServiceImplTest {
         initializeExceptionSubStatusList();
         trackDeliveryResponseConverter = new TrackDeliveryResponseConverter();
         fulfillmentTrackDeliveryResponseConverter = new FulfillmentTrackDeliveryResponseConverter();
-        notificationProcessService = new NotificationProcessServiceImpl(trackDeliveryResponseConverter, fulfillmentTrackDeliveryResponseConverter, trackingResponseProducer, fulfillmentTrackingResponseProducer, trackingRequestRepository, exceptionSubStatus);
+        notificationProcessService = new NotificationProcessServiceImpl(trackDeliveryResponseConverter, fulfillmentTrackDeliveryResponseConverter, trackingResponseProducer, fulfillmentTrackingResponseProducer, trackingRequestRepository, exceptionSubStatus, "PMI");
         initializeNotificationDTO();
         initializeTrackingRequest();
     }
@@ -279,6 +278,36 @@ public class NotificationProcessServiceImplTest {
 
     }
 
+    @DisplayName("When platform requested platform mismatched with current platform Id then verify request got ignored")
+    @Test
+    public void processGetTrackingWhenPlatformMismatched() {
+        notificationDTO.getMsg().getCustomFields().put(CUSTOM_FIELD_PLATFORM_ID, "VRP");
+        notificationProcessService.process(notificationDTO);
+        verify(fulfillmentTrackingResponseProducer, times(0)).send(any());
+        verify(trackingRequestRepository, times(0)).save(any());
+
+    }
+    @DisplayName("When platform requested platform is null then verify request got process")
+    @Test
+    public void processTrackingWhenPlatformIsNull() {
+        when(this.trackingRequestRepository.findByTrackingId(notificationDTO.getMsg().getTrackingNumber())).thenReturn(Optional.of(trackingRequest));
+        notificationDTO.getMsg().getCustomFields().put(CUSTOM_FIELD_PLATFORM_ID, null);
+        notificationProcessService.process(notificationDTO);
+        verify(trackingResponseProducer).send(any());
+        verify(trackingRequestRepository).save(any());
+    }
+
+    @DisplayName("When platform requested platform  is empty then verify request got process")
+    @Test
+    public void processTrackingWhenPlatformIsEmpty() {
+        when(this.trackingRequestRepository.findByTrackingId(notificationDTO.getMsg().getTrackingNumber())).thenReturn(Optional.of(trackingRequest));
+        notificationDTO.getMsg().getCustomFields().put(CUSTOM_FIELD_PLATFORM_ID, "");
+        notificationProcessService.process(notificationDTO);
+        verify(trackingResponseProducer).send(any());
+        verify(trackingRequestRepository).save(any());
+
+    }
+
     private void verifyNoTrackingResponseSent(){
         verify(trackingResponseProducer, times(0)).send(any());
         verify(trackingRequestRepository, times(1)).save(any());
@@ -288,6 +317,7 @@ public class NotificationProcessServiceImplTest {
         Map<String, String> customFields = new HashMap<>();
         customFields.put(CUSTOM_FIELD_VIBRENT_ID, "1000");
         customFields.put(CUSTOM_FIELD_EXTERNAL_ID, "P1000");
+        customFields.put(CUSTOM_FIELD_PLATFORM_ID, "PMI");
 
         Tracking tracking = new Tracking();
         tracking.setCustomFields(customFields);

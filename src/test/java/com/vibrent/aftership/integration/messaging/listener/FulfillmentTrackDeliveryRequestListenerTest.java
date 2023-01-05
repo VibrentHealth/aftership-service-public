@@ -4,9 +4,12 @@ package com.vibrent.aftership.integration.messaging.listener;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.vibrent.aftership.dto.RetryRequestDTO;
 import com.vibrent.aftership.integration.IntegrationTestBase;
 import com.vibrent.aftership.messaging.listener.FulfillmentTrackDeliveryRequestListener;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.util.JacksonUtil;
 import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryRequestDto;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
@@ -71,7 +74,7 @@ public class FulfillmentTrackDeliveryRequestListenerTest extends IntegrationTest
     @DisplayName("when message is received but kafka is not enabled " +
             "then verify message is not processed.")
     @Test
-    void ignoreFulfillmentTrackDeliveryRequestWhenKafkaIsDisabled() {
+    void ignoreFulfillmentTrackDeliveryRequestWhenKafkaIsDisabled() throws JsonProcessingException {
         ReflectionTestUtils.setField(fulfillmentTrackDeliveryRequestListener, "kafkaEnabled", false);
 
         Logger logger = (Logger) LoggerFactory.getLogger(FulfillmentTrackDeliveryRequestListener.class);
@@ -79,7 +82,7 @@ public class FulfillmentTrackDeliveryRequestListenerTest extends IntegrationTest
         logger.addAppender(listAppender);
         listAppender.start();
 
-        fulfillmentTrackDeliveryRequestListener.listener(new FulfillmentTrackDeliveryRequestDto(), null);
+        fulfillmentTrackDeliveryRequestListener.listener(buildPayload(new FulfillmentTrackDeliveryRequestDto()), null);
         List<ILoggingEvent> logsList = listAppender.list;
         assertEquals("WARN", logsList.get(0).getLevel().toString());
         verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),any(MessageHeaderDto.class));
@@ -98,4 +101,9 @@ public class FulfillmentTrackDeliveryRequestListenerTest extends IntegrationTest
         CountDownLatch countDownLatch = new CountDownLatch(1);
         countDownLatch.await(sec, TimeUnit.SECONDS);
     }
+
+    private byte[] buildPayload(FulfillmentTrackDeliveryRequestDto fulfillmentTrackDeliveryRequestDto) throws JsonProcessingException {
+        return JacksonUtil.getMapper().writeValueAsBytes(fulfillmentTrackDeliveryRequestDto);
+    }
+
 }

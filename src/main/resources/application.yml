@@ -64,6 +64,7 @@ afterShip:
   cron:
     retryTrackingDeliveryCron: ${RETRY_TRACKING_DELIVERY_CRON:0 0 0/1 ? * * *}
     getTrackingCron: ${GET_TRACKING_CRON:0 0 13 * * ? *}
+  platform: ${PLATFORM:PMI}
 
 vibrent:
   rock-steady:

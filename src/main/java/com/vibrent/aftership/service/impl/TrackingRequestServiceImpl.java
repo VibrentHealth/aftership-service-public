@@ -23,6 +23,7 @@ import com.vibrenthealth.resiliency.core.RockSteadySystem;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
 
     public static final String CUSTOM_FIELD_EXTERNAL_ID = "externalId";
     public static final String CUSTOM_FIELD_VIBRENT_ID = "vibrentId";
+    public static final String CUSTOM_FIELD_PLATFORM_ID = "platform";
 
     private final AfterShipTrackingService afterShipTrackingService;
     private final TrackingRequestConverter trackingRequestConverter;
@@ -45,11 +47,13 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
     private final TrackingRequestErrorRepository trackingRequestErrorRepository;
     private final ExternalLogService externalLogService;
     private final TrackingRequestErrorConverter trackingRequestErrorConverter;
+    private final String platform;
 
     public TrackingRequestServiceImpl(AfterShipTrackingService afterShipTrackingService, TrackingRequestConverter trackingRequestConverter,
                                       TrackingRequestRepository trackingRequestRepository, RockSteadySystem rockSteadySystem,
                                       TrackingRequestErrorRepository trackingRequestErrorRepository, ExternalLogService externalLogService,
-                                      TrackingRequestErrorConverter trackingRequestErrorConverter) {
+                                      TrackingRequestErrorConverter trackingRequestErrorConverter,
+                                      @Value("${afterShip.platform}") String platform) {
         this.afterShipTrackingService = afterShipTrackingService;
         this.trackingRequestConverter = trackingRequestConverter;
         this.trackingRequestRepository = trackingRequestRepository;
@@ -57,6 +61,7 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
         this.trackingRequestErrorRepository = trackingRequestErrorRepository;
         this.externalLogService = externalLogService;
         this.trackingRequestErrorConverter = trackingRequestErrorConverter;
+        this.platform = platform;
     }
 
     @Override
@@ -88,7 +93,7 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
 
     }
 
-    private static HashMap<String, String> getCustomFields(TrackDeliveryRequestVo trackDeliveryRequestVo) {
+    private  HashMap<String, String> getCustomFields(TrackDeliveryRequestVo trackDeliveryRequestVo) {
         HashMap<String, String> customFields = new HashMap<>();
         ParticipantDetailsDto participant = trackDeliveryRequestVo.getParticipant();
 
@@ -96,7 +101,7 @@ public class TrackingRequestServiceImpl implements TrackingRequestService {
             customFields.put(CUSTOM_FIELD_VIBRENT_ID, String.valueOf(participant.getVibrentID()));
             customFields.put(CUSTOM_FIELD_EXTERNAL_ID, participant.getExternalID());
         }
-
+        customFields.put(CUSTOM_FIELD_PLATFORM_ID, platform);
         return customFields;
     }
 

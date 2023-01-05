@@ -5,6 +5,7 @@ import com.vibrent.aftership.converter.TrackDeliveryRequestConverter;
 import com.vibrent.aftership.messaging.KafkaMessageBuilder;
 import com.vibrent.aftership.service.ExternalLogService;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.util.JacksonUtil;
 import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryRequestDto;
 import com.vibrent.vxp.workflow.FulfillmentTrackDeliveryRequestDtoWrapper;
@@ -16,6 +17,7 @@ import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.Headers;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
+import java.util.Arrays;
 
 /**
  * Kafka Listener for Fulfillment Tracking Requests
@@ -40,22 +42,30 @@ public class FulfillmentTrackDeliveryRequestListener {
 
     @KafkaListener(topics = "${kafka.topics.track.request}", groupId = "aftershipFulfillmentTrackingRequestListener",
             containerFactory = "kafkaListenerContainerFactoryFulfillmentTrackDeliveryRequest")
-    public void listener(@Payload FulfillmentTrackDeliveryRequestDto fulfillmentTrackDeliveryRequestDto,
-                         @Headers MessageHeaders requestHeaders) {
+
+   public void listener(@Payload byte[] payloadByteArray,
+                         @Headers MessageHeaders messageHeaders) {
+
+       FulfillmentTrackDeliveryRequestDto fulfillmentTrackDeliveryRequestDto = convertToFulfillmentTrackDeliveryRequestDto(payloadByteArray, messageHeaders );
+
         if (!kafkaEnabled) {
             log.warn("kafka is not enabled");
             return;
         }
-        log.info("aftership-Service: Received Fulfillment Track Delivery Request, FulfillmentTrackDeliveryRequestDto: {} ", fulfillmentTrackDeliveryRequestDto);
+        log.info("aftership-Service: Received Fulfillment Track Delivery Request, payload: {} messageHeaders{} ", payloadByteArray,messageHeaders);
 
-        try {
-            MessageHeaderDto messageHeader = KafkaMessageBuilder.toMessageHeaderDto(requestHeaders);
-            externalLogService.send(new FulfillmentTrackDeliveryRequestDtoWrapper(fulfillmentTrackDeliveryRequestDto, messageHeader));
-
-            TrackDeliveryRequestVo trackDeliveryRequestVo = trackDeliveryRequestConverter.toTrackDeliveryRequestVo(fulfillmentTrackDeliveryRequestDto);
-            trackingRequestService.createTrackDeliveryRequest(trackDeliveryRequestVo, messageHeader);
-        } catch (Exception e) {
-            log.error("Error while processing the create tracking request - {}", fulfillmentTrackDeliveryRequestDto, e);
-        }
+        TrackDeliveryRequestVo trackDeliveryRequestVo = trackDeliveryRequestConverter.toTrackDeliveryRequestVo(fulfillmentTrackDeliveryRequestDto);
+        trackingRequestService.createTrackDeliveryRequest(trackDeliveryRequestVo, KafkaMessageBuilder.toMessageHeaderDto(messageHeaders));
     }
+
+    FulfillmentTrackDeliveryRequestDto convertToFulfillmentTrackDeliveryRequestDto(byte[] payloadByteArray, MessageHeaders messageHeaders) {
+        FulfillmentTrackDeliveryRequestDto fulfillmentTrackDeliveryRequestDto = null;
+        try {
+            fulfillmentTrackDeliveryRequestDto = JacksonUtil.getMapper().readValue(payloadByteArray, FulfillmentTrackDeliveryRequestDto.class);
+        } catch (Exception e) {
+            log.warn("aftership-service: Cannot convert Payload to fulfillmentTrackDeliveryRequestDto  headers {} payload: {}",  messageHeaders.toString(), Arrays.toString(payloadByteArray), e);
+        }
+        return fulfillmentTrackDeliveryRequestDto;
+    }
+
 }

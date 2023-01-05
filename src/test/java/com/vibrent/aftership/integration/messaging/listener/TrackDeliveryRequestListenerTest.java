@@ -1,9 +1,12 @@
 package com.vibrent.aftership.integration.messaging.listener;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.vibrent.aftership.dto.RetryRequestDTO;
 import com.vibrent.aftership.integration.IntegrationTestBase;
 import com.vibrent.aftership.messaging.listener.TrackDeliveryRequestListener;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.util.JacksonUtil;
 import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.MessageHeaderDto;
 import com.vibrent.vxp.workflow.MessageSpecificationEnum;
@@ -58,9 +61,9 @@ public class TrackDeliveryRequestListenerTest extends IntegrationTestBase {
     @DisplayName("when non TrackDeliveryRequest message is received " +
             "then verify message is not processed.")
     @Test
-    void ignoreTrackDeliveryRequestWhenKafkaIsDisabled() {
+    void ignoreTrackDeliveryRequestWhenKafkaIsDisabled() throws JsonProcessingException {
         ReflectionTestUtils.setField(trackDeliveryRequestListener, "kafkaEnabled", false );
-        trackDeliveryRequestListener.listener( new TrackDeliveryRequestDto(), null);
+        trackDeliveryRequestListener.listener( buildPayload(new TrackDeliveryRequestDto()), null);
         verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
     }
@@ -79,4 +82,9 @@ public class TrackDeliveryRequestListenerTest extends IntegrationTestBase {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         countDownLatch.await(sec, TimeUnit.SECONDS);
     }
+
+    private byte[] buildPayload(TrackDeliveryRequestDto trackDeliveryRequestDto) throws JsonProcessingException {
+        return JacksonUtil.getMapper().writeValueAsBytes(trackDeliveryRequestDto);
+    }
+
 }

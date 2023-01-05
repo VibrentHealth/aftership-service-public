@@ -80,7 +80,7 @@ class TrackingRequestServiceTest {
         TestUtils.setFieldValue(afterShip, "trackingEndpoint", trackingEndpoint);
 
         trackingRequestService = new TrackingRequestServiceImpl(afterShipTrackingService, trackingRequestConverter, trackingRequestRepository,
-                rockSteadySystem, trackingRequestErrorRepository, externalLogService, trackingRequestErrorConverter);
+                rockSteadySystem, trackingRequestErrorRepository, externalLogService, trackingRequestErrorConverter, "PMI");
 
         initializeTracking();
     }

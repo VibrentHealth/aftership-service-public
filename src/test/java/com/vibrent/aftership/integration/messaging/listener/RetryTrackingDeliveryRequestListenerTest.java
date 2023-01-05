@@ -3,10 +3,12 @@ package com.vibrent.aftership.integration.messaging.listener;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vibrent.aftership.dto.RetryRequestDTO;
 import com.vibrent.aftership.messaging.listener.RetryTrackingDeliveryRequestListener;
 import com.vibrent.aftership.repository.TrackingRequestErrorRepository;
 import com.vibrent.aftership.service.TrackingRequestService;
+import com.vibrent.aftership.util.JacksonUtil;
 import com.vibrent.aftership.vo.TrackDeliveryRequestVo;
 import com.vibrent.vxp.workflow.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,9 +56,9 @@ class RetryTrackingDeliveryRequestListenerTest {
     }
 
     @Test
-    void testWhenKafkaIsDisabled() {
+    void testWhenKafkaIsDisabled() throws JsonProcessingException {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(false, trackingRequestService, trackingRequestErrorRepository);
-        retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
+        retryTrackingDeliveryRequestListener.listener(buildPayload(createRetryRequestDTO()));
 
         verify(trackingRequestService, Mockito.times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
@@ -66,9 +68,9 @@ class RetryTrackingDeliveryRequestListenerTest {
     @DisplayName("when Retry Track Delivery Request message is received " +
             "then verify message is processed.")
     @Test
-    void processOnlyWhenRetryTrackDeliveryRequestMsgIsReceived() {
+    void processOnlyWhenRetryTrackDeliveryRequestMsgIsReceived() throws JsonProcessingException {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
-        retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
+        retryTrackingDeliveryRequestListener.listener(buildPayload(createRetryRequestDTO()));
 
         verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
@@ -78,10 +80,10 @@ class RetryTrackingDeliveryRequestListenerTest {
             "And create tracking gets successes" +
             "then verify message is processed and tracking request error entry gets deleted")
     @Test
-    void testWhenRetryTrackDeliveryRequestMsgIsReceivedAndTrackingGetSuccess() {
+    void testWhenRetryTrackDeliveryRequestMsgIsReceivedAndTrackingGetSuccess() throws JsonProcessingException {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
         when(trackingRequestService.createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),any(MessageHeaderDto.class))).thenReturn(true);
-        retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
+        retryTrackingDeliveryRequestListener.listener(buildPayload(createRetryRequestDTO()));
 
         verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
@@ -92,12 +94,12 @@ class RetryTrackingDeliveryRequestListenerTest {
             "And create tracking gets failed" +
             "then verify message is processed and tracking request error entry not deleted")
     @Test
-    void testWhenRetryTrackDeliveryRequestMsgIsReceivedAndTrackingGetFailed() {
+    void testWhenRetryTrackDeliveryRequestMsgIsReceivedAndTrackingGetFailed() throws JsonProcessingException {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
         when(trackingRequestService.createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),any(MessageHeaderDto.class))).thenReturn(false);
-        retryTrackingDeliveryRequestListener.listener(createRetryRequestDTO());
+        retryTrackingDeliveryRequestListener.listener(buildPayload(createRetryRequestDTO()));
 
-        verify(trackingRequestService, Mockito.timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
+        verify(trackingRequestService, timeout(3000).times(1)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
         verify(trackingRequestErrorRepository, times(0)).deleteByTrackingId(anyString());
     }
@@ -106,7 +108,7 @@ class RetryTrackingDeliveryRequestListenerTest {
     @DisplayName("when Retry Track Delivery Request message is received with null tracking " +
             "then verify message is not processed.")
     @Test
-    void warnWhenRetryTrackDeliveryRequestMsgHavingNullTrackingRequest() {
+    void warnWhenRetryTrackDeliveryRequestMsgHavingNullTrackingRequest() throws JsonProcessingException {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
         var requestDto=createRetryRequestDTO();
         requestDto.setTrackDeliveryRequestVo(null);
@@ -115,7 +117,7 @@ class RetryTrackingDeliveryRequestListenerTest {
         logger.addAppender(listAppender);
         listAppender.start();
 
-        retryTrackingDeliveryRequestListener.listener(requestDto);
+        retryTrackingDeliveryRequestListener.listener(buildPayload(requestDto));
 
         var logList = listAppender.list;
         assertEquals("WARN",logList.get(0).getLevel().toString());
@@ -127,7 +129,7 @@ class RetryTrackingDeliveryRequestListenerTest {
     @DisplayName("when Retry Track Delivery Request message is received with null message header " +
             "then verify message is not processed.")
     @Test
-    void warnWhenRetryTrackDeliveryRequestMsgHavingNullMessageHeader() {
+    void warnWhenRetryTrackDeliveryRequestMsgHavingNullMessageHeader() throws JsonProcessingException {
         retryTrackingDeliveryRequestListener = new RetryTrackingDeliveryRequestListener(kafkaEnabled, trackingRequestService, trackingRequestErrorRepository);
         var requestDto=createRetryRequestDTO();
         requestDto.setMessageHeaderDto(null);
@@ -136,7 +138,7 @@ class RetryTrackingDeliveryRequestListenerTest {
         logger.addAppender(listAppender);
         listAppender.start();
 
-        retryTrackingDeliveryRequestListener.listener(requestDto);
+        retryTrackingDeliveryRequestListener.listener(buildPayload(requestDto));
 
         var logList = listAppender.list;
         assertEquals("WARN",logList.get(0).getLevel().toString());
@@ -158,8 +160,8 @@ class RetryTrackingDeliveryRequestListenerTest {
         retryTrackingDeliveryRequestListener.listener(null);
 
         var logList = listAppender.list;
-        assertEquals("WARN",logList.get(0).getLevel().toString());
-        assertTrue(logList.get(0).getMessage().contains("Cannot process retry tracking delivery request"));
+        assertEquals("WARN",logList.get(1).getLevel().toString());
+        assertTrue(logList.get(1).getMessage().contains("Cannot process retry tracking delivery request"));
         verify(trackingRequestService, Mockito.timeout(3000).times(0)).createTrackDeliveryRequest(any(TrackDeliveryRequestVo.class),
                 any(MessageHeaderDto.class));
     }
@@ -168,6 +170,7 @@ class RetryTrackingDeliveryRequestListenerTest {
         RetryRequestDTO retryRequestDTO = new RetryRequestDTO(getTrackDeliveryRequestVo(), getMessageHeaderDto());
         return retryRequestDTO;
     }
+
 
     TrackDeliveryRequestVo getTrackDeliveryRequestVo() {
 
@@ -205,5 +208,11 @@ class RetryTrackingDeliveryRequestListenerTest {
 
         return messageHeaders;
     }
+
+
+    private byte[] buildPayload(RetryRequestDTO retryRequestDTO) throws JsonProcessingException {
+        return JacksonUtil.getMapper().writeValueAsBytes(retryRequestDTO);
+    }
+
 
 }

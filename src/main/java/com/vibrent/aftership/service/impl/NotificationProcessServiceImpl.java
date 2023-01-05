@@ -16,14 +16,17 @@ import com.vibrent.vxp.workflow.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import javax.validation.constraints.NotNull;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 import static com.vibrent.aftership.constants.AfterShipConstants.TAG_EXCEPTION;
+import static com.vibrent.aftership.service.impl.TrackingRequestServiceImpl.CUSTOM_FIELD_PLATFORM_ID;
 
 @Slf4j
 @Service
@@ -35,19 +38,22 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
     private final FulfillmentTrackingResponseProducer fulfillmentTrackingResponseProducer;
     private final TrackingRequestRepository trackingRequestRepository;
     private List<String> exceptionSubStatus;
+    private final String platform;
 
     public NotificationProcessServiceImpl(TrackDeliveryResponseConverter trackDeliveryResponseConverter,
                                           FulfillmentTrackDeliveryResponseConverter fulfillmentTrackDeliveryResponseConverter,
                                           TrackingResponseProducer trackingResponseProducer,
                                           FulfillmentTrackingResponseProducer fulfillmentTrackingResponseProducer,
                                           TrackingRequestRepository trackingRequestRepository,
-                                          @NotNull @Value("${afterShip.exceptionSubStatus}") List<String> exceptionSubStatus) {
+                                          @NotNull @Value("${afterShip.exceptionSubStatus}") List<String> exceptionSubStatus,
+                                          @Value("${afterShip.platform}") String platform) {
         this.trackDeliveryResponseConverter = trackDeliveryResponseConverter;
         this.fulfillmentTrackDeliveryResponseConverter = fulfillmentTrackDeliveryResponseConverter;
         this.trackingResponseProducer = trackingResponseProducer;
         this.fulfillmentTrackingResponseProducer = fulfillmentTrackingResponseProducer;
         this.trackingRequestRepository = trackingRequestRepository;
         this.exceptionSubStatus = exceptionSubStatus;
+        this.platform = platform;
     }
 
     @Override
@@ -58,12 +64,16 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
             return;
         }
 
+        if (!validatePlatform(notificationDTO.getMsg())) {
+            return;
+        }
         try {
+
             Optional<TrackingRequest> optionalTrackingRequest = this.trackingRequestRepository.findByTrackingId(notificationDTO.getMsg().getTrackingNumber());
             TrackingRequest trackingRequest = optionalTrackingRequest.orElse(null);
 
             if (trackingRequest == null) {
-                log.warn("AfterShip: Could not find the saved tracking request in DB for tracking number: " + notificationDTO.getMsg().getTrackingNumber());
+                log.info("AfterShip: Could not find the saved tracking request in DB for tracking number: " + notificationDTO.getMsg().getTrackingNumber());
                 return;
             }
 
@@ -81,6 +91,24 @@ public class NotificationProcessServiceImpl implements NotificationProcessServic
         } catch (Exception e) {
             log.warn("AfterShip: Error while processing notificationDTO", e);
         }
+    }
+
+    /**
+     * This method check for the custom field
+     * If it exists and does not match with current platform, then ignore the webhook request.
+     * Otherwise process as it is
+     * @param tracking
+     */
+    private boolean validatePlatform(Tracking tracking) {
+        Map<String, String> customFields = tracking.getCustomFields();
+        if (!CollectionUtils.isEmpty(customFields)) {
+            String receivedPlatform = customFields.get(CUSTOM_FIELD_PLATFORM_ID);
+            if (StringUtils.hasText(receivedPlatform) && !platform.equalsIgnoreCase(receivedPlatform)) {
+                log.warn("AfterShip: Ignoring web-hook request due to platform mismatch. Received platform:{}", receivedPlatform);
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
